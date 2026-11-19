@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { settingsAction } from "@/app/actions";
 
-const TABS = ["Business", "Locale & tax", "Hours", "AI"];
-export function SettingsForm({ identity, locale, hours, aiEnabled, aiPlatformOn }: { identity: ReactNode; locale: ReactNode; hours: ReactNode; aiEnabled: boolean; aiPlatformOn: boolean }) {
+const TABS = ["Business", "Locale & tax", "Hours", "Modules", "AI"];
+export function SettingsForm({ identity, locale, hours, modules, aiEnabled, aiPlatformOn }: { identity: ReactNode; locale: ReactNode; hours: ReactNode; modules: ReactNode; aiEnabled: boolean; aiPlatformOn: boolean }) {
   const [tab, setTab] = useState(0);
   const [pending, start] = useTransition();
   const router = useRouter();
@@ -16,8 +16,8 @@ export function SettingsForm({ identity, locale, hours, aiEnabled, aiPlatformOn 
       </div>
       <div className="card p-5 sm:p-6">
         {/* all panels stay mounted (hidden) so one save submits every field */}
-        <div hidden={tab !== 0}>{identity}</div><div hidden={tab !== 1}>{locale}</div><div hidden={tab !== 2}>{hours}</div>
-        <div hidden={tab !== 3} className="space-y-3 text-sm">
+        <div hidden={tab !== 0}>{identity}</div><div hidden={tab !== 1}>{locale}</div><div hidden={tab !== 2}>{hours}</div><div hidden={tab !== 3}>{modules}</div>
+        <div hidden={tab !== 4} className="space-y-3 text-sm">
           <input type="hidden" name="aiEnabledPresent" value="1" />
           <label className="flex items-center gap-2"><input type="checkbox" name="aiEnabled" defaultChecked={aiEnabled} />Enable AI features for this business</label>
           <p className="text-muted">{aiPlatformOn ? "The platform has AI enabled. AI uses only free or local models and is always optional." : "AI is currently turned off by the platform administrator. Everything else works normally."}</p>

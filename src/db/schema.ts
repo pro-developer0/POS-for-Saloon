@@ -77,6 +77,8 @@ export const tenants = pgTable("tenants", {
   invoiceFooter: text("invoice_footer"),
   lowStockDefault: integer("low_stock_default").notNull().default(5),
   loyaltyPointsPerUnit: integer("loyalty_points_per_unit").notNull().default(1), // points per 10 currency units
+  // Enabled feature modules. null = use the business type preset (see src/lib/verticals.ts)
+  modules: jsonb("modules").$type<string[] | null>(),
   aiEnabled: boolean("ai_enabled").notNull().default(true),
   aiDailyLimit: integer("ai_daily_limit").notNull().default(30),
   createdAt: createdAt(),
@@ -187,6 +189,7 @@ export const products = pgTable("products", {
   minStock: integer("min_stock").notNull().default(5),
   supplierId: uuid("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
   taxable: boolean("taxable").notNull().default(true),
+  trackStock: boolean("track_stock").notNull().default(true), // false for menu items / non-stocked goods
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [index("products_tenant").on(t.tenantId), uniqueIndex("products_sku_uq").on(t.tenantId, t.sku)]);

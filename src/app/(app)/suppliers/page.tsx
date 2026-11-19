@@ -20,7 +20,7 @@ function SupplierFields({ s }: { s?: typeof suppliers.$inferSelect }) {
   );
 }
 export default async function Page() {
-  const ctx = await requireCtx("inventory.view");
+  const ctx = await requireCtx("inventory.view", "purchases");
   const rows = await listSuppliers(ctx);
   const can = ctx.perms.has("suppliers.manage");
   return (

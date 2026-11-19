@@ -43,6 +43,7 @@ test("new business: register, onboard, land on empty dashboard", async ({ page }
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("Str0ng-Password-1");
   await page.getByLabel("Business name").fill("E2E Cuts");
+  await page.getByLabel("Business type").selectOption("hair_salon");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/onboarding/);
   for (let i = 0; i < 3; i++) { await page.getByRole("button", { name: "Continue" }).click(); await page.waitForTimeout(400); }
@@ -168,6 +169,7 @@ test("forgot password: request link, reset, sign in with the new password", asyn
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("Old-Password-123");
   await page.getByLabel("Business name").fill("Forgot Salon");
+  await page.getByLabel("Business type").selectOption("hair_salon");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/onboarding/);
   await expect(page.getByText(/Please confirm your email/)).toHaveCount(0); // onboarding has no banner; app pages do
@@ -207,6 +209,7 @@ test("new accounts see a confirm-email banner and can confirm via the emailed li
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("Verify-Pass-123");
   await page.getByLabel("Business name").fill("Verify Salon");
+  await page.getByLabel("Business type").selectOption("hair_salon");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/onboarding/);
   const outbox = fs.readFileSync(".data/e2e-outbox.log", "utf8");
@@ -214,4 +217,40 @@ test("new accounts see a confirm-email banner and can confirm via the emailed li
   await page.goto(link);
   await page.getByRole("button", { name: "Confirm my email" }).click();
   await expect(page.getByText("Email confirmed")).toBeVisible();
+});
+
+test("pharmacy business: no appointment features, pharmacy wording, modules are switchable", async ({ page }) => {
+  const email = `pharma${Date.now()}@example.test`;
+  await page.goto("/register");
+  await page.getByLabel("Your name").fill("Pharma Owner");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Password").fill("Pharma-Pass-123");
+  await page.getByLabel("Business name").fill("Green Cross Pharmacy");
+  await page.getByLabel("Business type").selectOption("hair_salon");
+  await page.getByLabel("Business type").selectOption("pharmacy");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page).toHaveURL(/onboarding/);
+  for (let i = 0; i < 3; i++) { await page.getByRole("button", { name: "Continue" }).click(); await page.waitForTimeout(400); }
+  await page.getByRole("button", { name: "Finish setup" }).click();
+  await expect(page).toHaveURL(/dashboard/, { timeout: 30_000 });
+
+  const nav = page.getByRole("navigation", { name: "Main" });
+  await expect(nav.getByRole("link", { name: "Inventory" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Point of Sale" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Patients / customers" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Calendar" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Appointments" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Services" })).toHaveCount(0);
+
+  await page.goto("/calendar"); // blocked on the server, not just hidden
+  await expect(page).toHaveURL(/dashboard/);
+
+  await page.goto("/pos");
+  await expect(page.getByRole("button", { name: "Services", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Medicines & items" })).toBeVisible();
+
+  await page.goto("/settings");
+  await page.getByRole("tab", { name: "Modules" }).click();
+  await expect(page.getByLabel(/Batches & expiry/)).toBeChecked();
+  await expect(page.getByLabel(/Appointments & calendar/)).not.toBeChecked();
 });

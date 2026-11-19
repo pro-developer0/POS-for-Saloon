@@ -1,3 +1,4 @@
+import { labelsOf } from "@/lib/verticals";
 import { requireCtx } from "@/server/session";
 import { listAppointments } from "@/server/services/appointments";
 import { bookingOptions } from "@/lib/lists";
@@ -10,7 +11,7 @@ import { fromCents, toCents } from "@/lib/money";
 
 export const metadata = { title: "Appointments" };
 export default async function Page({ searchParams }: { searchParams: Promise<{ from?: string; days?: string; status?: string; staff?: string; service?: string; q?: string }> }) {
-  const ctx = await requireCtx("appointments.view");
+  const ctx = await requireCtx("appointments.view", "appointments");
   const sp = await searchParams; const tz = ctx.tenant.timezone, h12 = ctx.tenant.timeFormat === "12h";
   const today = zonedParts(new Date(), tz).date;
   const from = sp.from || today, days = Math.min(90, Math.max(1, Number(sp.days) || 7));
@@ -19,7 +20,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ f
   const can = ctx.perms.has("appointments.manage");
   return (
     <div className="page-in">
-      <PageHeader title="Appointments" desc="Bookings are validated against business hours, staff schedules, breaks, time off and conflicts."
+      <PageHeader title={labelsOf(ctx.tenant).appointments} desc="Bookings are validated against business hours, staff schedules, breaks, time off and conflicts."
         actions={can ? <BookingModal customers={opts.customers} services={opts.services} staff={opts.staff} today={today} /> : null} />
       <form className="card mb-4 grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-6">
         <input name="q" defaultValue={sp.q} placeholder="Search customer…" className="input col-span-2 sm:col-span-1" aria-label="Search" />

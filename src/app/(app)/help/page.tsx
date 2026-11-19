@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "@/lib/brand";
 import { requireCtx } from "@/server/session";
 import { Card, PageHeader } from "@/components/ui";
 
@@ -16,7 +17,7 @@ export default async function Page() {
     <div className="page-in">
       <PageHeader title="Help & support" />
       <div className="grid gap-4 lg:grid-cols-2">{FAQ.map(([q, a]) => <Card key={q} className="p-5"><h2 className="font-semibold">{q}</h2><p className="mt-2 text-sm text-muted">{a}</p></Card>)}</div>
-      <p className="mt-5 text-sm text-muted">Need more help? Contact your SalonPro provider.</p>
+      <p className="mt-5 text-sm text-muted">Need more help? Contact your {PRODUCT_NAME} provider.</p>
     </div>
   );
 }

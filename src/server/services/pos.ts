@@ -98,7 +98,7 @@ export async function checkout(ctx: Ctx, raw: unknown): Promise<CheckoutResult> 
       const status = paid === total ? "paid" : paid > 0 ? "partial" : "unpaid";
 
       // stock deduction (atomic and guarded)
-      for (const l of lines.filter((x) => x.kind === "product")) {
+      for (const l of lines.filter((x) => x.kind === "product" && prodMap.get(x.id)?.trackStock)) {
         const [p] = await tx.update(products).set({ quantity: sql`${products.quantity} - ${l.qty}` })
           .where(and(eq(products.id, l.id), eq(products.tenantId, ctx.tenantId), sql`${products.quantity} >= ${l.qty}`)).returning({ q: products.quantity });
         if (!p) throw new AppError(`Not enough stock for ${l.name}`, "conflict");
@@ -167,7 +167,7 @@ export async function checkout(ctx: Ctx, raw: unknown): Promise<CheckoutResult> 
 }
 
 export async function lowStockCheck(ctx: Ctx) {
-  const low = await ctx.db.select().from(products).where(and(eq(products.tenantId, ctx.tenantId), eq(products.active, true), sql`${products.quantity} <= ${products.minStock}`));
+  const low = await ctx.db.select().from(products).where(and(eq(products.tenantId, ctx.tenantId), eq(products.active, true), eq(products.trackStock, true), sql`${products.quantity} <= ${products.minStock}`));
   for (const p of low) {
     await ctx.db.insert(notifications).values({ tenantId: ctx.tenantId, kind: "low_stock", title: `Low stock: ${p.name}`, body: `${p.quantity} left (minimum ${p.minStock})`, link: "/inventory", dedupeKey: `low:${p.id}:${p.quantity}` }).onConflictDoNothing();
   }
@@ -202,7 +202,8 @@ export async function voidSale(ctx: Ctx, transactionId: string, reason: string) 
     if (toCents(t.paid) > 0) throw new AppError("Sales with payments cannot be voided. Issue a refund process instead.");
     const items = await tx.select().from(transactionItems).where(and(eq(transactionItems.transactionId, transactionId), eq(transactionItems.tenantId, ctx.tenantId)));
     for (const i of items.filter((x) => x.kind === "product" && x.productId)) {
-      const [p] = await tx.update(products).set({ quantity: sql`${products.quantity} + ${i.quantity}` }).where(and(eq(products.id, i.productId!), eq(products.tenantId, ctx.tenantId))).returning({ q: products.quantity });
+      const [p] = await tx.update(products).set({ quantity: sql`${products.quantity} + ${i.quantity}` }).where(and(eq(products.id, i.productId!), eq(products.tenantId, ctx.tenantId), eq(products.trackStock, true))).returning({ q: products.quantity });
+      if (!p) continue; // untracked items have no stock to return
       await tx.insert(inventoryMovements).values({ tenantId: ctx.tenantId, productId: i.productId!, delta: i.quantity, balanceAfter: p.q, reason: "return", refType: "transaction", refId: transactionId, userId: ctx.userId });
     }
     await tx.update(transactions).set({ status: "cancelled", notes: `${t.notes ?? ""} [VOID: ${reason}]`.trim() }).where(eq(transactions.id, transactionId));

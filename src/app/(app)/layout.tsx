@@ -1,3 +1,4 @@
+import { labelsOf, modulesOf, type Module } from "@/lib/verticals";
 import type { Metadata } from "next";
 import { and, eq, sql } from "drizzle-orm";
 import { requireCtx, getUser } from "@/server/session";
@@ -9,18 +10,18 @@ import { readableOn } from "@/lib/color";
 import { ActionButton } from "@/components/forms";
 import { resendVerificationAction } from "@/app/actions";
 
-const NAV: (NavItem & { perm?: string })[] = [
+const NAV: (NavItem & { perm?: string; mod?: Module; lk?: "staff" | "services" | "customers" | "appointments" })[] = [
   { href: "/dashboard", label: "Dashboard", icon: "LayoutDashboard", perm: "dashboard.view" },
-  { href: "/appointments", label: "Appointments", icon: "CalendarDays", perm: "appointments.view" },
-  { href: "/calendar", label: "Calendar", icon: "CalendarRange", perm: "appointments.view" },
+  { href: "/appointments", label: "Appointments", icon: "CalendarDays", perm: "appointments.view", mod: "appointments", lk: "appointments" },
+  { href: "/calendar", label: "Calendar", icon: "CalendarRange", perm: "appointments.view", mod: "appointments" },
   { href: "/pos", label: "Point of Sale", icon: "ShoppingCart", perm: "pos.use" },
-  { href: "/customers", label: "Customers", icon: "Users", perm: "customers.view" },
-  { href: "/services", label: "Services", icon: "Scissors", perm: "services.view" },
-  { href: "/staff", label: "Staff", icon: "UserCog", perm: "staff.view" },
-  { href: "/inventory", label: "Inventory", icon: "Boxes", perm: "inventory.view" },
-  { href: "/suppliers", label: "Suppliers", icon: "Truck", perm: "inventory.view" },
-  { href: "/purchases", label: "Purchases", icon: "Receipt", perm: "inventory.view" },
-  { href: "/expenses", label: "Expenses", icon: "Wallet", perm: "expenses.view" },
+  { href: "/customers", label: "Customers", icon: "Users", perm: "customers.view", lk: "customers" },
+  { href: "/services", label: "Services", icon: "Scissors", perm: "services.view", mod: "services", lk: "services" },
+  { href: "/staff", label: "Staff", icon: "UserCog", perm: "staff.view", mod: "staff", lk: "staff" },
+  { href: "/inventory", label: "Inventory", icon: "Boxes", perm: "inventory.view", mod: "inventory" },
+  { href: "/suppliers", label: "Suppliers", icon: "Truck", perm: "inventory.view", mod: "purchases" },
+  { href: "/purchases", label: "Purchases", icon: "Receipt", perm: "inventory.view", mod: "purchases" },
+  { href: "/expenses", label: "Expenses", icon: "Wallet", perm: "expenses.view", mod: "expenses" },
   { href: "/invoices", label: "Invoices", icon: "FileText", perm: "invoices.view" },
   { href: "/payments", label: "Payments", icon: "CreditCard", perm: "invoices.view" },
   { href: "/reports", label: "Reports", icon: "BarChart3", perm: "reports.view" },
@@ -39,7 +40,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = (await getUser())!;
   const workspaces = await listMemberships(ctx.db, user.id);
   const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(notifications).where(and(eq(notifications.tenantId, ctx.tenantId), eq(notifications.read, false)));
-  const nav: NavItem[] = NAV.filter((i) => !i.perm || ctx.perms.has(i.perm)).map(({ perm, ...i }) => (void perm, i));
+  const mods = modulesOf(ctx.tenant), L = labelsOf(ctx.tenant);
+  const nav: NavItem[] = NAV.filter((i) => (!i.perm || ctx.perms.has(i.perm)) && (!i.mod || mods.has(i.mod)))
+    .map(({ perm, mod, lk, ...i }) => (void perm, void mod, lk ? { ...i, label: L[lk] } : i));
   if (user.isPlatformAdmin) nav.push({ href: "/admin", label: "Platform Admin", icon: "ShieldCheck" });
   const t = ctx.tenant;
   return (

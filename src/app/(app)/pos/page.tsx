@@ -1,3 +1,4 @@
+import { hasModule, labelsOf } from "@/lib/verticals";
 import { and, asc, eq } from "drizzle-orm";
 import { requireCtx } from "@/server/session";
 import { Pos } from "@/components/pos";
@@ -22,8 +23,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
   return (
     <div className="page-in">
       <PageHeader title="Point of Sale" desc="Sell services and products, take split payments and print receipts." />
-      <Pos services={svc.map((s) => ({ id: s.id, name: s.name, price: s.price, taxable: s.taxable }))} products={prod.map((p) => ({ id: p.id, name: p.name, price: p.sellPrice, taxable: p.taxable, stock: p.quantity }))}
-        customers={cust} staff={st} methods={ctx.tenant.paymentMethods} taxRate={ctx.tenant.taxRate} currency={ctx.tenant.currency} pre={pre} />
+      <Pos services={svc.map((s) => ({ id: s.id, name: s.name, price: s.price, taxable: s.taxable }))} products={prod.map((p) => ({ id: p.id, name: p.name, price: p.sellPrice, taxable: p.taxable, stock: p.trackStock ? p.quantity : undefined }))}
+        customers={cust} staff={st} methods={ctx.tenant.paymentMethods} taxRate={ctx.tenant.taxRate} currency={ctx.tenant.currency} pre={pre} showServices={hasModule(ctx.tenant, "services")} showStaff={hasModule(ctx.tenant, "staff")} noteLabel={labelsOf(ctx.tenant).posNote} productLabel={labelsOf(ctx.tenant).products} />
     </div>
   );
 }

@@ -46,3 +46,4 @@ uploads
 .env.local
 test-results
 playwright-report
+!.env.example

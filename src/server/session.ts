@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { users, memberships } from "@/db/schema";
 import { buildCtx, AppError, need, type Ctx } from "./ctx";
 import { sessionStillValid } from "./tokens";
+import { hasModule, type Module } from "@/lib/verticals";
 
 const COOKIE = "sp_session";
 const TENANT_COOKIE = "sp_tenant";
@@ -52,7 +53,7 @@ export async function requireUser() {
 }
 
 /** Resolves the tenant workspace from the cookie, but ONLY if the user holds an active membership. */
-export async function requireCtx(perm?: string): Promise<Ctx> {
+export async function requireCtx(perm?: string, module?: Module): Promise<Ctx> {
   const user = await requireUser();
   const d = await db();
   const wanted = (await cookies()).get(TENANT_COOKIE)?.value;
@@ -64,6 +65,7 @@ export async function requireCtx(perm?: string): Promise<Ctx> {
   }
   if (!ctx) redirect(user.isPlatformAdmin ? "/admin" : "/register");
   if (!ctx.tenant.onboarded && perm !== "__onboarding") redirect("/onboarding");
+  if (module && !hasModule(ctx.tenant, module)) redirect("/dashboard");
   if (perm && perm !== "__onboarding") {
     try { need(ctx, perm); } catch { redirect("/forbidden"); }
   }

@@ -11,7 +11,7 @@ import type { RangeKey } from "@/lib/time";
 
 export const metadata = { title: "Expenses" };
 export default async function Page({ searchParams }: { searchParams: Promise<{ range?: RangeKey; from?: string; to?: string }> }) {
-  const ctx = await requireCtx("expenses.view");
+  const ctx = await requireCtx("expenses.view", "expenses");
   const sp = await searchParams;
   const r = rangeFor(ctx, (sp.range ?? "month") as RangeKey, { from: sp.from, to: sp.to });
   const [rows, sups] = await Promise.all([listExpenses(ctx, r.fromDate, r.toDate), listSuppliers(ctx)]);

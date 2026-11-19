@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "@/lib/brand";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { aiConversations, aiMessages, aiUsage, aiSavedContent, platformSettings } from "@/db/schema";
 import type { DB } from "@/db/client";
@@ -137,7 +138,7 @@ export async function gatherFacts(ctx: Ctx, question: string): Promise<{ facts: 
   return { facts, rangeLabel: label, tools };
 }
 
-const SYSTEM = (biz: string, cur: string) => `You are the SalonPro business advisor for "${biz}". Currency: ${cur}.
+const SYSTEM = (biz: string, cur: string, kind: string) => `You are the ${PRODUCT_NAME} business advisor for "${biz}" (a ${kind}). Currency: ${cur}.
 Rules: Use ONLY the verified FACTS provided. Never invent or recompute financial numbers; quote them as given. State the date range and the data source. If facts are missing or empty, say the data is incomplete. Clearly label any general advice (not from the data) as "General suggestion". You cannot change data, send messages, book, refund or purchase. Keep answers concise and practical.`;
 
 export async function askAdvisor(ctx: Ctx, conversationId: string | null, question: string) {
@@ -159,7 +160,7 @@ export async function askAdvisor(ctx: Ctx, conversationId: string | null, questi
   let content: string; let meta: Record<string, unknown> = { tools, facts };
   try {
     const r = await runAi(ctx, "advisor", [
-      { role: "system", content: SYSTEM(ctx.tenant.name, ctx.tenant.currency) },
+      { role: "system", content: SYSTEM(ctx.tenant.name, ctx.tenant.currency, ctx.tenant.businessType.replace(/_/g, " ")) },
       ...history.slice(0, -1).map((h) => ({ role: h.role as "user" | "assistant", content: h.content.slice(0, 800) })),
       { role: "user", content: `FACTS (verified, period: ${rangeLabel}):\n${factsText}\n\nQUESTION: ${q}` },
     ]);
@@ -209,7 +210,7 @@ export async function generateMarketing(ctx: Ctx, i: MarketingInput) {
   const prompt = `Write ${i.length} ${i.kind} for ${i.platform} for the business "${ctx.tenant.name}" (${ctx.tenant.businessType.replace(/_/g, " ")}).
 ${i.service ? `Service: ${clip(i.service)}\n` : ""}${i.promotion ? `Promotion: ${clip(i.promotion)}\n` : ""}${i.audience ? `Audience: ${clip(i.audience)}\n` : ""}Tone: ${clip(i.tone)}. Language: ${clip(i.language)}.
 Do not invent prices, discounts, dates or claims that were not provided above. Output only the content, ready to edit.`;
-  const r = await runAi(ctx, "marketing", [{ role: "system", content: "You are a marketing copywriter for beauty and hair businesses. Be accurate and never fabricate offers." }, { role: "user", content: prompt }], { maxTokens: 800 });
+  const r = await runAi(ctx, "marketing", [{ role: "system", content: "You are a marketing copywriter for small local businesses. Be accurate and never fabricate offers." }, { role: "user", content: prompt }], { maxTokens: 800 });
   return { text: r.text, provider: r.provider, model: r.model, local: r.local };
 }
 export async function saveContent(ctx: Ctx, kind: string, title: string, content: string) {

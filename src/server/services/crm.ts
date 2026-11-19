@@ -1,7 +1,7 @@
 import { and, desc, eq, ilike, or, sql, asc } from "drizzle-orm";
 import { z } from "zod";
 import { customers, services, serviceCategories, staff, staffServices, staffTimeOff, appointments, transactions } from "@/db/schema";
-import { AppError, audit, need, type Ctx } from "../ctx";
+import { AppError, audit, need, needModule, type Ctx } from "../ctx";
 import type { WeekHours } from "@/db/schema";
 
 const emptyToNull = (v: unknown) => (v === "" ? null : v);
@@ -108,6 +108,7 @@ export async function listServices(ctx: Ctx, includeArchived = false) {
 }
 
 export async function saveService(ctx: Ctx, raw: unknown, id?: string) {
+  needModule(ctx, "services");
   need(ctx, "services.manage");
   const { staffIds, ...v } = serviceSchema.parse(raw);
   await assertOwnedStaff(ctx, staffIds);
@@ -171,6 +172,7 @@ export async function listStaff(ctx: Ctx) {
 }
 
 export async function saveStaff(ctx: Ctx, raw: unknown, id?: string) {
+  needModule(ctx, "staff");
   need(ctx, "staff.manage");
   const { serviceIds, salary, ...v } = staffSchema.parse(raw);
   if (serviceIds.length) {

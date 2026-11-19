@@ -62,11 +62,11 @@ export async function customerStats(ctx: Ctx, r: Range) {
   return { newCustomers: Number(x.new_c), returning: Number(x.returning_c) };
 }
 
-export async function popularServices(ctx: Ctx, r: Range, limit = 6) {
+export async function popularServices(ctx: Ctx, r: Range, limit = 6, kind: "service" | "any" = "service") {
   need(ctx, "reports.view");
   const rows = await ctx.db.execute<{ name: string; qty: string; revenue: string }>(sql`
     select i.name, sum(i.quantity) qty, sum(i.line_total) revenue from transaction_items i join transactions t on t.id = i.transaction_id
-    where i.tenant_id = ${ctx.tenantId} and i.kind = 'service' and t.status <> 'cancelled' and t.created_at >= ${r.from} and t.created_at < ${r.to}
+    where i.tenant_id = ${ctx.tenantId} and ${kind === "any" ? sql`true` : sql`i.kind = 'service'`} and t.status <> 'cancelled' and t.created_at >= ${r.from} and t.created_at < ${r.to}
     group by i.name order by qty desc, revenue desc limit ${limit}`);
   return rows.rows.map((x) => ({ name: x.name, qty: Number(x.qty), revenue: x.revenue }));
 }
@@ -127,7 +127,7 @@ export async function busiestDays(ctx: Ctx, r: Range) {
 export async function lowStock(ctx: Ctx) {
   need(ctx, "inventory.view");
   return ctx.db.select({ id: products.id, name: products.name, quantity: products.quantity, minStock: products.minStock }).from(products)
-    .where(and(eq(products.tenantId, ctx.tenantId), eq(products.active, true), sql`${products.quantity} <= ${products.minStock}`));
+    .where(and(eq(products.tenantId, ctx.tenantId), eq(products.active, true), eq(products.trackStock, true), sql`${products.quantity} <= ${products.minStock}`));
 }
 
 export async function recentTransactions(ctx: Ctx, limit = 8) {

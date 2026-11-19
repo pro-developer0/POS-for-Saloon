@@ -1,3 +1,4 @@
+import { labelsOf } from "@/lib/verticals";
 import { requireCtx } from "@/server/session";
 import { listCategories, listServices, listStaff } from "@/server/services/crm";
 import { Card, Empty, PageHeader, Field, StatusBadge, money } from "@/components/ui";
@@ -29,13 +30,13 @@ function ServiceFields({ s, cats, staff }: { s?: Row; cats: { id: string; name: 
 }
 
 export default async function Page() {
-  const ctx = await requireCtx("services.view");
+  const ctx = await requireCtx("services.view", "services");
   const [rows, cats, staff] = await Promise.all([listServices(ctx, true), listCategories(ctx), listStaff(ctx)]);
   const can = ctx.perms.has("services.manage"); const cur = ctx.tenant.currency;
   const catName = new Map(cats.map((c) => [c.id, c.name]));
   return (
     <div className="page-in">
-      <PageHeader title="Services" desc="Your service catalog. Prices are tax-exclusive." actions={can ? <>
+      <PageHeader title={labelsOf(ctx.tenant).services} desc="Your service catalog. Prices are tax-exclusive." actions={can ? <>
         <ModalForm trigger="Add category" triggerClass="btn" title="New category" action={addCategoryAction}><Field label="Name"><input name="name" required className="input" /></Field></ModalForm>
         <ModalForm trigger="Add service" title="New service" action={saveServiceAction} wide><ServiceFields cats={cats} staff={staff} /></ModalForm></> : null} />
       <Card>

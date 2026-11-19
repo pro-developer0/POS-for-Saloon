@@ -15,6 +15,13 @@
       "when": 1795113729804,
       "tag": "0001_lonely_power_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795116291070,
+      "tag": "0002_youthful_paper_doll",
+      "breakpoints": true
     }
   ]
 }

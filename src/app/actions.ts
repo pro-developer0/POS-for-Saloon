@@ -19,6 +19,7 @@ import { zonedToUtc, hm } from "@/lib/time";
 import type { WeekHours } from "@/db/schema";
 import type { Result } from "@/components/forms";
 import { ROLES } from "@/lib/permissions";
+import { MODULES } from "@/lib/verticals";
 import { saveUpload } from "@/server/uploads";
 import { requestPasswordReset, resetPassword, sendVerification, verifyEmail } from "@/server/tokens";
 import { appUrl } from "@/server/mail";
@@ -148,6 +149,7 @@ export async function saveBusinessAction(fd: FormData, finish = false): Promise<
     if (methods.length) patch.paymentMethods = methods;
     if (fd.get("hours0_open") !== null) patch.hours = parseWeek(fd, "hours");
     if (fd.has("aiEnabledPresent")) patch.aiEnabled = b(fd, "aiEnabled");
+    if (fd.has("modulesPresent")) patch.modules = all(fd, "modules").filter((m) => (MODULES as readonly string[]).includes(m));
     const logo = fd.get("logo");
     if (logo instanceof File && logo.size > 0) patch.logoUrl = await saveUpload(ctx.tenantId, logo, "logo");
     const fav = fd.get("favicon");
@@ -265,7 +267,7 @@ export async function voidSaleAction(fd: FormData): Promise<Result> { return run
 
 // ================= INVENTORY / SUPPLIERS / PURCHASES / EXPENSES =================
 export async function saveProductAction(fd: FormData): Promise<Result> {
-  return run(async () => { await inv.saveProduct(await requireCtx("inventory.manage"), { name: s(fd, "name"), sku: s(fd, "sku"), barcode: s(fd, "barcode"), category: s(fd, "category"), description: s(fd, "description"), costPrice: s(fd, "costPrice") || 0, sellPrice: s(fd, "sellPrice") || 0, minStock: s(fd, "minStock") || 5, supplierId: s(fd, "supplierId"), taxable: b(fd, "taxable"), active: fd.has("activePresent") ? b(fd, "active") : true, initialQuantity: s(fd, "initialQuantity") || 0 }, s(fd, "id") || undefined); });
+  return run(async () => { await inv.saveProduct(await requireCtx("inventory.manage"), { name: s(fd, "name"), sku: s(fd, "sku"), barcode: s(fd, "barcode"), category: s(fd, "category"), description: s(fd, "description"), costPrice: s(fd, "costPrice") || 0, sellPrice: s(fd, "sellPrice") || 0, minStock: s(fd, "minStock") || 5, supplierId: s(fd, "supplierId"), taxable: b(fd, "taxable"), trackStock: fd.has("trackStockPresent") ? b(fd, "trackStock") : true, active: fd.has("activePresent") ? b(fd, "active") : true, initialQuantity: s(fd, "initialQuantity") || 0 }, s(fd, "id") || undefined); });
 }
 export async function adjustStockAction(fd: FormData): Promise<Result> {
   return run(async () => { await inv.adjustStock(await requireCtx("inventory.manage"), s(fd, "productId"), Number(s(fd, "delta")), (s(fd, "reason") || "adjustment") as never, s(fd, "note")); });

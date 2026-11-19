@@ -16,7 +16,7 @@ export const productSchema = z.object({
   costPrice: money, sellPrice: money,
   minStock: z.coerce.number().int().min(0).default(5),
   supplierId: z.preprocess(emptyToNull, z.string().uuid().nullable().optional()),
-  taxable: z.boolean().default(true), active: z.boolean().default(true),
+  taxable: z.boolean().default(true), active: z.boolean().default(true), trackStock: z.boolean().default(true),
   initialQuantity: z.coerce.number().int().min(0).default(0),
 });
 
@@ -24,7 +24,7 @@ export async function listProducts(ctx: Ctx, o: { q?: string; lowOnly?: boolean 
   need(ctx, "inventory.view");
   const rows = await ctx.db.select({ p: products, supplierName: suppliers.name }).from(products)
     .leftJoin(suppliers, eq(suppliers.id, products.supplierId)).where(eq(products.tenantId, ctx.tenantId)).orderBy(asc(products.name));
-  return rows.filter((r) => (!o.q || r.p.name.toLowerCase().includes(o.q.toLowerCase()) || (r.p.sku ?? "").toLowerCase().includes(o.q.toLowerCase()) || (r.p.barcode ?? "") === o.q) && (!o.lowOnly || r.p.quantity <= r.p.minStock));
+  return rows.filter((r) => (!o.q || r.p.name.toLowerCase().includes(o.q.toLowerCase()) || (r.p.sku ?? "").toLowerCase().includes(o.q.toLowerCase()) || (r.p.barcode ?? "") === o.q) && (!o.lowOnly || (r.p.trackStock && r.p.quantity <= r.p.minStock)));
 }
 
 async function assertSupplier(ctx: Ctx, id?: string | null) {
@@ -69,7 +69,7 @@ export async function stockHistory(ctx: Ctx, productId: string) {
 
 export async function stockValuation(ctx: Ctx) {
   need(ctx, "inventory.view");
-  const rows = await ctx.db.select({ q: products.quantity, c: products.costPrice, s: products.sellPrice }).from(products).where(and(eq(products.tenantId, ctx.tenantId), eq(products.active, true)));
+  const rows = await ctx.db.select({ q: products.quantity, c: products.costPrice, s: products.sellPrice }).from(products).where(and(eq(products.tenantId, ctx.tenantId), eq(products.active, true), eq(products.trackStock, true)));
   return { cost: fromCents(rows.reduce((a, r) => a + r.q * toCents(r.c), 0)), retail: fromCents(rows.reduce((a, r) => a + r.q * toCents(r.s), 0)) };
 }
 

@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { desc, eq, ilike, or, sql } from "drizzle-orm";
@@ -22,7 +23,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6">
       <header className="mb-6 flex items-center justify-between">
-        <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-brand font-bold text-brandfg">S</div><div><h1 className="text-xl font-semibold">SalonPro platform admin</h1><p className="text-xs text-muted">Tenant metadata and aggregates only — private business data is not shown here.</p></div></div>
+        <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-brand font-bold text-brandfg">S</div><div><h1 className="text-xl font-semibold">{PRODUCT_NAME} platform admin</h1><p className="text-xs text-muted">Tenant metadata and aggregates only — private business data is not shown here.</p></div></div>
         <div className="flex gap-2"><Link href="/dashboard" className="btn btn-sm">Workspace</Link><form action={logoutAction}><button className="btn btn-sm">Sign out</button></form></div>
       </header>
       <Tabs active={tab} tabs={tabs} />

@@ -1,7 +1,7 @@
 import { and, asc, eq, gt, lt, ne, notInArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { appointments, customers, services, staff, staffServices, staffTimeOff, notifications } from "@/db/schema";
-import { AppError, audit, need, type Ctx } from "../ctx";
+import { AppError, audit, need, needModule, type Ctx } from "../ctx";
 import { addDays, hm, minToHm, zonedParts, zonedToUtc } from "@/lib/time";
 import { toCents, fromCents, pctOf } from "@/lib/money";
 
@@ -81,6 +81,7 @@ export const apptSchema = z.object({
 });
 
 export async function createAppointment(ctx: Ctx, raw: unknown) {
+  needModule(ctx, "appointments");
   need(ctx, "appointments.manage");
   const v = apptSchema.parse(raw);
   const [cust] = await ctx.db.select({ id: customers.id }).from(customers).where(and(eq(customers.id, v.customerId), eq(customers.tenantId, ctx.tenantId)));
@@ -108,6 +109,7 @@ export async function createAppointment(ctx: Ctx, raw: unknown) {
 }
 
 export async function rescheduleAppointment(ctx: Ctx, id: string, startsAt: Date, staffId?: string) {
+  needModule(ctx, "appointments");
   need(ctx, "appointments.manage");
   return ctx.db.transaction(async (tx) => {
     const tctx = { ...ctx, db: tx as unknown as Ctx["db"] };
@@ -126,6 +128,7 @@ export async function rescheduleAppointment(ctx: Ctx, id: string, startsAt: Date
 }
 
 export async function setAppointmentStatus(ctx: Ctx, id: string, status: (typeof APPT_STATUSES)[number]) {
+  needModule(ctx, "appointments");
   need(ctx, "appointments.manage");
   const [a] = await ctx.db.select().from(appointments).where(and(eq(appointments.id, id), eq(appointments.tenantId, ctx.tenantId)));
   if (!a) throw new AppError("Appointment not found", "not_found");
@@ -139,6 +142,7 @@ export async function setAppointmentStatus(ctx: Ctx, id: string, status: (typeof
 }
 
 export async function listAppointments(ctx: Ctx, o: { from: Date; to: Date; staffId?: string; status?: string; serviceId?: string; q?: string }) {
+  needModule(ctx, "appointments");
   need(ctx, "appointments.view");
   const conds = [eq(appointments.tenantId, ctx.tenantId), gt(appointments.endsAt, o.from), lt(appointments.startsAt, o.to)];
   if (o.staffId) conds.push(eq(appointments.staffId, o.staffId));
@@ -153,6 +157,7 @@ export async function listAppointments(ctx: Ctx, o: { from: Date; to: Date; staf
 
 /** Available start times for a service on a local date. Every slot is verified through validateSlot. */
 export async function findSlots(ctx: Ctx, o: { date: string; serviceId: string; staffId?: string; durationMinutes?: number }) {
+  needModule(ctx, "appointments");
   need(ctx, "appointments.view");
   const [svc] = await ctx.db.select().from(services).where(and(eq(services.id, o.serviceId), eq(services.tenantId, ctx.tenantId)));
   if (!svc) throw new AppError("Service not found", "not_found");

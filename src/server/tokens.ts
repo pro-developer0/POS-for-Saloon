@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "@/lib/brand";
 import crypto from "node:crypto";
 import bcrypt from "bcryptjs";
 import { and, eq, gt, isNull } from "drizzle-orm";
@@ -34,7 +35,7 @@ export async function requestPasswordReset(db: DB, emailRaw: string, baseUrl: st
   const [u] = await db.select().from(users).where(eq(users.email, email));
   if (!u || u.disabled || !baseUrl) return;
   const raw = await createToken(db, u.id, "reset");
-  await sendMail({ to: u.email, subject: "Reset your SalonPro password", text: `Hi ${u.name},\n\nUse this link to choose a new password (valid for 1 hour, one use):\n${baseUrl}/reset-password?token=${raw}\n\nIf you didn't ask for this, you can ignore this email — your password won't change.` });
+  await sendMail({ to: u.email, subject: `Reset your ${PRODUCT_NAME} password`, text: `Hi ${u.name},\n\nUse this link to choose a new password (valid for 1 hour, one use):\n${baseUrl}/reset-password?token=${raw}\n\nIf you didn't ask for this, you can ignore this email — your password won't change.` });
 }
 
 export async function resetPassword(db: DB, raw: string, password: string) {
@@ -50,7 +51,7 @@ export async function sendVerification(db: DB, userId: string, baseUrl: string |
   const [u] = await db.select().from(users).where(eq(users.id, userId));
   if (!u || u.emailVerifiedAt || !baseUrl) return;
   const raw = await createToken(db, u.id, "verify");
-  await sendMail({ to: u.email, subject: "Confirm your SalonPro email", text: `Hi ${u.name},\n\nConfirm your email address:\n${baseUrl}/verify-email?token=${raw}\n\nThis link is valid for 24 hours.` });
+  await sendMail({ to: u.email, subject: `Confirm your ${PRODUCT_NAME} email`, text: `Hi ${u.name},\n\nConfirm your email address:\n${baseUrl}/verify-email?token=${raw}\n\nThis link is valid for 24 hours.` });
 }
 
 export async function verifyEmail(db: DB, raw: string) {

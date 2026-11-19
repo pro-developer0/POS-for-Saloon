@@ -11,6 +11,7 @@ type P = Awaited<ReturnType<typeof listProducts>>[number]["p"];
 function ProductFields({ p, suppliers }: { p?: P; suppliers: { id: string; name: string }[] }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
+      <input type="hidden" name="trackStockPresent" value="1" />
       {p && <><input type="hidden" name="id" value={p.id} /><input type="hidden" name="activePresent" value="1" /></>}
       <div className="sm:col-span-2"><Field label="Product name"><input name="name" required className="input" defaultValue={p?.name} /></Field></div>
       <Field label="SKU"><input name="sku" className="input" defaultValue={p?.sku ?? ""} /></Field>
@@ -22,18 +23,18 @@ function ProductFields({ p, suppliers }: { p?: P; suppliers: { id: string; name:
       <Field label="Minimum stock"><input name="minStock" type="number" min="0" className="input" defaultValue={p?.minStock ?? 5} /></Field>
       {!p && <Field label="Opening quantity"><input name="initialQuantity" type="number" min="0" className="input" defaultValue="0" /></Field>}
       <div className="sm:col-span-2"><Field label="Description"><input name="description" className="input" defaultValue={p?.description ?? ""} /></Field></div>
-      <div className="flex gap-5 text-sm sm:col-span-2"><label className="flex items-center gap-2"><input type="checkbox" name="taxable" defaultChecked={p?.taxable ?? true} />Taxable</label>{p && <label className="flex items-center gap-2"><input type="checkbox" name="active" defaultChecked={p.active} />Active</label>}</div>
+      <div className="flex gap-5 text-sm sm:col-span-2"><label className="flex items-center gap-2"><input type="checkbox" name="taxable" defaultChecked={p?.taxable ?? true} />Taxable</label><label className="flex items-center gap-2"><input type="checkbox" name="trackStock" defaultChecked={p?.trackStock ?? true} />Track stock</label>{p && <label className="flex items-center gap-2"><input type="checkbox" name="active" defaultChecked={p.active} />Active</label>}</div>
     </div>
   );
 }
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ q?: string; low?: string; history?: string }> }) {
-  const ctx = await requireCtx("inventory.view");
+  const ctx = await requireCtx("inventory.view", "inventory");
   const sp = await searchParams;
   const [rows, suppliers, val] = await Promise.all([listProducts(ctx, { q: sp.q, lowOnly: sp.low === "1" }), listSuppliers(ctx), stockValuation(ctx)]);
   const hist = sp.history && /^[0-9a-f-]{36}$/.test(sp.history) ? await stockHistory(ctx, sp.history) : null;
   const can = ctx.perms.has("inventory.manage"), cur = ctx.tenant.currency;
-  const lowCount = rows.filter((r) => r.p.quantity <= r.p.minStock).length;
+  const lowCount = rows.filter((r) => r.p.trackStock && r.p.quantity <= r.p.minStock).length;
   return (
     <div className="page-in">
       <PageHeader title="Inventory" desc="Every stock change is recorded in the movement history." actions={can ? <ModalForm trigger="Add product" title="New product" action={saveProductAction} wide><ProductFields suppliers={suppliers} /></ModalForm> : null} />
@@ -42,10 +43,10 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
       <Card>
         {rows.length === 0 ? <Empty title="No products" desc="Add products to sell at the POS and track stock." /> : (
           <div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Product</th><th>SKU</th><th>Supplier</th><th className="text-right">Cost</th><th className="text-right">Price</th><th className="text-right">Stock</th><th /></tr></thead>
-            <tbody>{rows.map(({ p, supplierName }) => { const low = p.quantity <= p.minStock; return (
+            <tbody>{rows.map(({ p, supplierName }) => { const low = p.trackStock && p.quantity <= p.minStock; return (
               <tr key={p.id} className={p.active ? "" : "opacity-50"}><td className="font-medium">{p.name}<span className="block text-xs font-normal text-muted">{p.category}</span></td><td className="text-muted">{p.sku}</td><td className="text-muted">{supplierName ?? "—"}</td>
                 <td className="text-right">{money(p.costPrice, cur)}</td><td className="text-right">{money(p.sellPrice, cur)}</td>
-                <td className="text-right"><span className={`badge ${low ? "bg-bad/15 text-bad" : ""}`}>{p.quantity}{low ? " · low" : ""}</span></td>
+                <td className="text-right">{p.trackStock ? <span className={`badge ${low ? "bg-bad/15 text-bad" : ""}`}>{p.quantity}{low ? " · low" : ""}</span> : <span className="badge">not tracked</span>}</td>
                 <td><div className="flex justify-end gap-1.5">
                   <a className="btn btn-sm" href={`/inventory?history=${p.id}`}>History</a>
                   {can && <ModalForm trigger="Adjust" triggerClass="btn btn-sm" title={`Adjust stock — ${p.name}`} action={adjustStockAction}>

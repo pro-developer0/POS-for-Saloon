@@ -8,6 +8,7 @@ import { Card, PageHeader, Field, StatusBadge } from "@/components/ui";
 import { ActionButton, ModalForm } from "@/components/forms";
 import { addMemberAction, removeMemberAction } from "@/app/actions";
 import { ROLES } from "@/lib/permissions";
+import { MODULES, MODULE_INFO, modulesOf, verticalOf } from "@/lib/verticals";
 
 export const metadata = { title: "Settings" };
 export default async function Page() {
@@ -21,7 +22,7 @@ export default async function Page() {
   return (
     <div className="page-in">
       <PageHeader title="Settings" desc={`Workspace plan: ${t.plan} · status: ${t.status}${t.trialEndsAt ? ` · trial ends ${t.trialEndsAt.toISOString().slice(0, 10)}` : ""}`} />
-      <SettingsForm identity={<IdentityFields t={t} />} locale={<LocaleFields t={t} />} hours={<HoursFields t={t} />} aiEnabled={t.aiEnabled} aiPlatformOn={ai.enabled} />
+      <SettingsForm identity={<IdentityFields t={t} />} locale={<LocaleFields t={t} />} hours={<HoursFields t={t} />} modules={<ModuleChecks t={t} />} aiEnabled={t.aiEnabled} aiPlatformOn={ai.enabled} />
       <Card title="Team & access" className="mt-6" action={canMembers ? <ModalForm trigger="Add member" triggerClass="btn btn-sm btn-primary" title="Add team member" action={addMemberAction}>
         <Field label="Email"><input name="email" type="email" required className="input" /></Field>
         <Field label="Name (for new users)"><input name="name" className="input" /></Field>
@@ -32,6 +33,22 @@ export default async function Page() {
           <tbody>{members.map((m) => (<tr key={m.id}><td className="font-medium">{m.name}</td><td className="text-muted">{m.email}</td><td><StatusBadge status={m.role === "owner" ? "active" : "pending"} /> <span className="capitalize">{m.role}</span></td>
             <td className="text-right">{canMembers && m.role !== "owner" && <ActionButton action={removeMemberAction} args={[m.id]} confirm={`Remove ${m.name}'s access?`} className="btn btn-sm btn-danger">Remove</ActionButton>}</td></tr>))}</tbody></table></div>
       </Card>
+    </div>
+  );
+}
+
+function ModuleChecks({ t }: { t: Parameters<typeof modulesOf>[0] }) {
+  const on = modulesOf(t);
+  return (
+    <div className="space-y-3">
+      <input type="hidden" name="modulesPresent" value="1" />
+      <p className="text-sm text-muted">Business type: <b>{verticalOf(t.businessType).label}</b>. Switch features on or off for your business. Turning a module off hides it and blocks it on the server; your data is kept.</p>
+      {MODULES.map((m) => (
+        <label key={m} className="flex items-start gap-3 rounded-xl border border-line p-3 text-sm">
+          <input type="checkbox" name="modules" value={m} defaultChecked={on.has(m)} className="mt-1" />
+          <span><b>{MODULE_INFO[m].label}</b><span className="block text-muted">{MODULE_INFO[m].desc}</span></span>
+        </label>
+      ))}
     </div>
   );
 }

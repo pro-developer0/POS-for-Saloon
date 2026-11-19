@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import type { DB } from "@/db/client";
 import { memberships, tenants, users } from "@/db/schema";
 import { permissionsFor } from "@/lib/permissions";
+import { hasModule, MODULE_INFO, type Module } from "@/lib/verticals";
 
 export class AppError extends Error {
   constructor(message: string, public code: "validation" | "forbidden" | "not_found" | "conflict" | "unauthorized" = "validation") {
@@ -31,6 +32,10 @@ export async function buildCtx(db: DB, userId: string, tenantId: string): Promis
   return { db, tenant: row.t, tenantId, userId, role: row.m.role, perms: permissionsFor(row.m.role, row.m.permissions) };
 }
 
+/** Server-side feature switch: throws if this business has the module turned off. */
+export function needModule(ctx: Pick<Ctx, "tenant">, m: Module) {
+  if (!hasModule(ctx.tenant, m)) throw new AppError(`${MODULE_INFO[m].label} is not enabled for this business.`, "forbidden");
+}
 export const can = (ctx: Ctx, p: string) => ctx.perms.has(p);
 export function need(ctx: Ctx, p: string) {
   if (!ctx.perms.has(p)) throw new AppError(`Permission denied (${p}).`, "forbidden");

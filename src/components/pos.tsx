@@ -12,12 +12,13 @@ type Pay = { method: string; amount: string };
 
 const c = (v: string | number) => Math.round(Number(v || 0) * 100);
 
-export function Pos({ services, products, customers, staff, methods, taxRate, currency, pre }: {
+export function Pos({ services, products, customers, staff, methods, taxRate, currency, pre, showServices = true, showStaff = true, noteLabel = "Payment notes (optional)", productLabel = "Products" }: {
   services: Item[]; products: Item[]; customers: { id: string; name: string; phone?: string | null }[]; staff: { id: string; name: string }[];
   methods: string[]; taxRate: string; currency: string; pre?: { appointmentId: string; customerId: string; staffId: string; serviceId: string; discount: string };
+  showServices?: boolean; showStaff?: boolean; noteLabel?: string; productLabel?: string;
 }) {
   const router = useRouter();
-  const [tab, setTab] = useState<"service" | "product">("service");
+  const [tab, setTab] = useState<"service" | "product">(showServices ? "service" : "product");
   const [q, setQ] = useState("");
   const [cart, setCart] = useState<Line[]>(() => {
     if (!pre) return [];
@@ -54,7 +55,7 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
   const add = (kind: "service" | "product", i: Item) => setCart((cs) => {
     const ex = cs.find((l) => l.kind === kind && l.id === i.id);
     if (ex) return cs.map((l) => (l === ex ? { ...l, qty: Math.min(l.qty + 1, kind === "product" ? i.stock ?? 999 : 999) } : l));
-    if (kind === "product" && (i.stock ?? 0) < 1) { toast.error(`${i.name} is out of stock`); return cs; }
+    if (kind === "product" && i.stock !== undefined && i.stock < 1) { toast.error(`${i.name} is out of stock`); return cs; }
     return [...cs, { kind, id: i.id, name: i.name, unit: c(i.price), taxable: i.taxable, qty: 1, discount: 0, stock: i.stock }];
   });
 
@@ -86,18 +87,18 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
       <section className="card p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <div className="flex rounded-lg border border-line p-0.5">
-            {(["service", "product"] as const).map((k) => <button key={k} onClick={() => setTab(k)} className={`rounded-md px-3.5 py-1.5 text-sm font-semibold capitalize ${tab === k ? "bg-brand text-brandfg" : "text-muted"}`}>{k}s</button>)}
+            {(showServices ? (["service", "product"] as const) : (["product"] as const)).map((k) => <button key={k} onClick={() => setTab(k)} className={`rounded-md px-3.5 py-1.5 text-sm font-semibold ${tab === k ? "bg-brand text-brandfg" : "text-muted"}`}>{k === "service" ? "Services" : productLabel}</button>)}
           </div>
-          <div className="relative min-w-40 flex-1"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input pl-9" placeholder={`Search ${tab}s…`} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search items" /></div>
+          <div className="relative min-w-40 flex-1"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" /><input className="input pl-9" placeholder={`Search ${tab === "service" ? "services" : productLabel.toLowerCase()}…`} value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search items" /></div>
         </div>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-4">
           {list.map((i) => {
-            const out = tab === "product" && (i.stock ?? 0) < 1;
+            const out = tab === "product" && i.stock !== undefined && i.stock < 1;
             return (
               <button key={i.id} disabled={out} onClick={() => add(tab, i)} className="card p-3 text-left transition hover:-translate-y-0.5 hover:border-brand active:scale-[.98] disabled:opacity-40">
                 <p className="line-clamp-2 text-sm font-semibold">{i.name}</p>
                 <p className="mt-1 text-sm text-brand">{fmt(c(i.price))}</p>
-                {tab === "product" && <p className={`mt-0.5 text-xs ${out ? "text-bad" : "text-muted"}`}>{out ? "Out of stock" : `${i.stock} in stock`}</p>}
+                {tab === "product" && i.stock !== undefined && <p className={`mt-0.5 text-xs ${out ? "text-bad" : "text-muted"}`}>{out ? "Out of stock" : `${i.stock} in stock`}</p>}
               </button>
             );
           })}
@@ -108,7 +109,7 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
       <aside className="card flex flex-col p-4 lg:sticky lg:top-20 lg:max-h-[calc(100dvh-6rem)] lg:overflow-y-auto">
         <div className="grid grid-cols-2 gap-2">
           <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} aria-label="Customer"><option value="">Walk-in customer</option>{customers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-          <select className="input" value={staffId} onChange={(e) => setStaffId(e.target.value)} aria-label="Staff"><option value="">Staff…</option>{staff.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+          {showStaff ? <select className="input" value={staffId} onChange={(e) => setStaffId(e.target.value)} aria-label="Staff"><option value="">Staff…</option>{staff.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select> : <span />}
         </div>
         <ul className="my-3 flex-1 space-y-2">
           {cart.length === 0 && <li className="py-8 text-center text-sm text-muted">Cart is empty. Tap a service or product.</li>}
@@ -146,7 +147,7 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
             <button className="font-semibold text-brand" onClick={() => setPays([{ ...pays[0], amount: (t.total / 100).toFixed(2) }])}>Pay full amount</button>
           </div>
           <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={credit} onChange={(e) => setCredit(e.target.checked)} />Leave balance on invoice (partial / pay later)</label>
-          <input className="input" placeholder="Payment notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
+          <input className="input" placeholder={noteLabel} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
           <div className={`flex justify-between text-sm font-semibold ${t.due > 0 ? "text-warn" : t.due < 0 ? "text-bad" : "text-ok"}`}><span>{t.due < 0 ? "Overpaid" : "Balance due"}</span><span>{fmt(Math.abs(t.due))}</span></div>
         </div>
         <button className="btn btn-primary mt-3 h-11 w-full text-base" disabled={pending || cart.length === 0 || t.due < 0 || (t.due > 0 && !credit)} onClick={pay}>{pending ? "Processing…" : `Charge ${fmt(t.paid || t.total)}`}</button>

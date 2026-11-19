@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "@/lib/brand";
 import Link from "next/link";
 import { requireCtx } from "@/server/session";
 import { getAiConfig, listConversations, listContent } from "@/server/ai/service";
@@ -24,7 +25,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
   const t = (k: string, l: string) => ({ key: k, label: l, href: `/ai?tab=${k}` });
   return (
     <div className="page-in">
-      <PageHeader title="AI Assistant" desc="Optional. Free/local models only — the rest of SalonPro works without it." />
+      <PageHeader title="AI Assistant" desc={`Optional. Free/local models only — the rest of ${PRODUCT_NAME} works without it.`} />
       <Tabs active={tab} tabs={[t("advisor", "Business advisor"), t("marketing", "Marketing studio"), t("insights", "Retention & inventory insights")]} />
       {tab === "advisor" && <Advisor conversations={(await listConversations(ctx)).map((c) => ({ id: c.id, title: c.title, updatedAt: c.updatedAt.toISOString() }))} enabled={enabled} reason={reason} />}
       {tab === "marketing" && <MarketingStudio saved={(await listContent(ctx)).map((s) => ({ id: s.id, kind: s.kind, title: s.title, content: s.content, createdAt: s.createdAt.toISOString() }))} services={(await listServices(ctx)).map((s) => s.s.name)} preset={sp} aiNote={reason} />}

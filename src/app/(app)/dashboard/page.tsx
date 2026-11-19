@@ -1,3 +1,4 @@
+import { modulesOf } from "@/lib/verticals";
 import Link from "next/link";
 import { requireCtx } from "@/server/session";
 import * as rep from "@/server/services/reports";
@@ -14,11 +15,12 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
   const key = (sp.range ?? "30d") as RangeKey;
   const r = rep.rangeFor(ctx, key, { from: sp.from, to: sp.to });
   const canReports = ctx.perms.has("reports.view");
+  const mods = modulesOf(ctx.tenant);
   const cur = ctx.tenant.currency, m = (v: string | number) => money(v, cur);
   const [sum, series, appt, cust, recent, low, dormant, popular, staffPerf] = await Promise.all([
     rep.salesSummary(ctx, r), rep.revenueSeries(ctx, r), rep.appointmentStats(ctx, r), rep.customerStats(ctx, r), rep.recentTransactions(ctx),
     ctx.perms.has("inventory.view") ? rep.lowStock(ctx) : [], ctx.perms.has("customers.view") ? rep.dormantCustomers(ctx, 60, 50) : [],
-    canReports ? rep.popularServices(ctx, r, 5) : [], canReports ? rep.staffPerformance(ctx, r) : [],
+    canReports ? rep.popularServices(ctx, r, 5, mods.has("services") ? "service" : "any") : [], canReports ? rep.staffPerformance(ctx, r) : [],
   ]);
   const by = appt.byStatus;
   const profit = Number(sum.netProfit);
@@ -32,18 +34,18 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
         <Stat label="Expenses" value={m(sum.expenses)} />
         <Stat label="Net profit" value={m(sum.netProfit)} tone={profit < 0 ? "bad" : "ok"} hint="Net sales − expenses" />
         <Stat label="Avg. transaction" value={m(sum.avgTransaction)} />
-        <Stat label="Appointments" value={appt.total} hint={`${appt.upcoming} upcoming`} />
+        {mods.has("appointments") && <Stat label="Appointments" value={appt.total} hint={`${appt.upcoming} upcoming`} />}
         <Stat label="New / returning customers" value={`${cust.newCustomers} / ${cust.returning}`} />
       </div>
       <div className="mt-4 grid gap-4 xl:grid-cols-3">
-        <Card title="Revenue" className="xl:col-span-2"><div className="p-4"><RevenueChart data={series} currency={cur} /></div></Card>
-        <Card title="Appointment overview">
+        <Card title="Revenue" className={mods.has("appointments") ? "xl:col-span-2" : "xl:col-span-3"}><div className="p-4"><RevenueChart data={series} currency={cur} /></div></Card>
+        {mods.has("appointments") && <Card title="Appointment overview">
           <div className="space-y-2.5 p-5 text-sm">
             {(["completed", "confirmed", "pending", "cancelled", "no_show"] as const).map((s) => (
               <div key={s} className="flex items-center justify-between"><StatusBadge status={s} /><span className="font-semibold">{by[s] ?? 0}</span></div>
             ))}
           </div>
-        </Card>
+        </Card>}
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
         <Card title="Business alerts & insights" action={ctx.perms.has("ai.use") ? <Link href="/ai" className="text-xs font-semibold text-brand">Ask the AI advisor →</Link> : null}>
@@ -55,13 +57,13 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           </ul>
         </Card>
         {canReports && (
-          <Card title="Popular services">
+          <Card title={mods.has("services") ? "Popular services" : "Top sellers"}>
             {popular.length ? <BarsChartWrap data={popular} /> : <Empty title="No service sales yet" desc="Complete a sale in POS to see rankings." />}
           </Card>
         )}
       </div>
       <div className="mt-4 grid gap-4 lg:grid-cols-2">
-        {canReports && (
+        {canReports && mods.has("staff") && (
           <Card title="Staff performance">
             <div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Staff</th><th>Services</th><th className="text-right">Revenue</th></tr></thead>
               <tbody>{staffPerf.map((s) => <tr key={s.id}><td className="font-medium">{s.name}</td><td>{s.services}</td><td className="text-right">{m(s.revenue)}</td></tr>)}</tbody></table></div>

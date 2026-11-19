@@ -9,7 +9,7 @@ import { DAY_NAMES } from "@/lib/constants";
 
 export const metadata = { title: "Calendar" };
 export default async function Page({ searchParams }: { searchParams: Promise<{ view?: string; date?: string; staff?: string; service?: string; status?: string }> }) {
-  const ctx = await requireCtx("appointments.view");
+  const ctx = await requireCtx("appointments.view", "appointments");
   const sp = await searchParams;
   const tz = ctx.tenant.timezone, h12 = ctx.tenant.timeFormat === "12h";
   const today = zonedParts(new Date(), tz).date;

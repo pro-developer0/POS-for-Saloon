@@ -1,3 +1,4 @@
+import { PRODUCT_NAME } from "@/lib/brand";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -14,7 +15,7 @@ export async function sendMail(m: Mail): Promise<"smtp" | "outbox"> {
   const url = process.env.SMTP_URL;
   if (url) {
     const nodemailer = await import("nodemailer");
-    await nodemailer.createTransport(url).sendMail({ from: process.env.MAIL_FROM ?? "SalonPro <no-reply@localhost>", to: m.to, subject: m.subject, text: m.text });
+    await nodemailer.createTransport(url).sendMail({ from: process.env.MAIL_FROM ?? `${PRODUCT_NAME} <no-reply@localhost>`, to: m.to, subject: m.subject, text: m.text });
     return "smtp";
   }
   const f = outboxFile();

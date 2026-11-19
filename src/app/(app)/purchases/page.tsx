@@ -7,7 +7,7 @@ import { fmtDate } from "@/lib/time";
 
 export const metadata = { title: "Purchases" };
 export default async function Page() {
-  const ctx = await requireCtx("inventory.view");
+  const ctx = await requireCtx("inventory.view", "purchases");
   const [rows, sups, prods] = await Promise.all([listPurchases(ctx), listSuppliers(ctx), listProducts(ctx)]);
   const can = ctx.perms.has("suppliers.manage"), cur = ctx.tenant.currency;
   return (

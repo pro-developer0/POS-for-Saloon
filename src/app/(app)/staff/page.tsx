@@ -1,3 +1,4 @@
+import { labelsOf } from "@/lib/verticals";
 import { requireCtx } from "@/server/session";
 import { listServices, listStaff, listTimeOff } from "@/server/services/crm";
 import { staffPerformance, rangeFor } from "@/server/services/reports";
@@ -31,7 +32,7 @@ function StaffFields({ s, svcs, canSalary, tenantHours }: { s?: S; svcs: { id: s
 }
 
 export default async function Page() {
-  const ctx = await requireCtx("staff.view");
+  const ctx = await requireCtx("staff.view", "staff");
   const [rows, svcs, off, perf] = await Promise.all([listStaff(ctx), listServices(ctx), listTimeOff(ctx), ctx.perms.has("reports.view") ? staffPerformance(ctx, rangeFor(ctx, "30d")) : []]);
   const can = ctx.perms.has("staff.manage"), canSalary = ctx.perms.has("staff.salary"), cur = ctx.tenant.currency, tz = ctx.tenant.timezone;
   const svcOpts = svcs.map((x) => ({ id: x.s.id, name: x.s.name }));
@@ -39,7 +40,7 @@ export default async function Page() {
   void zonedParts;
   return (
     <div className="page-in">
-      <PageHeader title="Staff" desc="Profiles, schedules, commission and time off." actions={can ? <>
+      <PageHeader title={labelsOf(ctx.tenant).staff} desc="Profiles, schedules, commission and time off." actions={can ? <>
         <ModalForm trigger="Add time off" triggerClass="btn" title="Time off / leave" action={timeOffAction}>
           <Field label="Staff"><select name="staffId" required className="input">{rows.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
           <div className="grid grid-cols-2 gap-3"><Field label="From"><input name="from" type="date" required className="input" /></Field><Field label="To (inclusive)"><input name="to" type="date" required className="input" /></Field></div>

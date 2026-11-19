@@ -1,9 +1,10 @@
 "use client";
+import { PRODUCT_NAME } from "@/lib/brand";
 import { useActionState } from "react";
 import Link from "next/link";
 import { loginAction, registerAction, requestResetAction, resetPasswordAction, verifyEmailAction } from "@/app/actions";
 import type { Result } from "./forms";
-import { BUSINESS_TYPE_OPTIONS } from "@/lib/constants";
+import { BUSINESS_TYPE_OPTIONS } from "@/lib/verticals";
 
 function Shell({ title, sub, children, foot }: { title: string; sub: string; children: React.ReactNode; foot: React.ReactNode }) {
   return (
@@ -23,7 +24,7 @@ function Shell({ title, sub, children, foot }: { title: string; sub: string; chi
 export function LoginForm() {
   const [state, act, pending] = useActionState<Result | null, FormData>(loginAction, null);
   return (
-    <Shell title="Welcome back" sub="Sign in to your SalonPro workspace." foot={<>New here? <Link className="font-semibold text-brand" href="/register">Create your business</Link></>}>
+    <Shell title="Welcome back" sub={`Sign in to your ${PRODUCT_NAME} workspace.`} foot={<>New here? <Link className="font-semibold text-brand" href="/register">Create your business</Link></>}>
       <form action={act} className="space-y-4">
         <div><label className="label" htmlFor="email">Email</label><input id="email" name="email" type="email" required autoComplete="email" className="input" /></div>
         <div><label className="label" htmlFor="password">Password</label><input id="password" name="password" type="password" required autoComplete="current-password" className="input" /><div className="mt-1.5 text-right"><Link href="/forgot-password" className="text-xs font-semibold text-brand">Forgot password?</Link></div></div>
@@ -44,7 +45,8 @@ export function RegisterForm() {
         <div><label className="label" htmlFor="password">Password</label><input id="password" name="password" type="password" required minLength={10} className="input" autoComplete="new-password" /><p className="mt-1 text-xs text-muted">At least 10 characters, with letters and numbers.</p></div>
         <div><label className="label" htmlFor="businessName">Business name</label><input id="businessName" name="businessName" required className="input" /></div>
         <div><label className="label" htmlFor="businessType">Business type</label>
-          <select id="businessType" name="businessType" className="input">{BUSINESS_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+          <select id="businessType" name="businessType" className="input" required defaultValue="">
+            <option value="" disabled>Select your business type…</option>{BUSINESS_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
         {state && !state.ok && <p role="alert" className="rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{state.error}</p>}
         <button className="btn btn-primary w-full" disabled={pending}>{pending ? "Creating…" : "Create account"}</button>
       </form>
