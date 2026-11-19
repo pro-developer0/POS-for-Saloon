@@ -258,3 +258,20 @@ describe("auth", () => {
     await db.update(tenants).set({ status: "active" }).where(eq(tenants.id, ids.glow));
   });
 });
+
+describe("customer list figures come from the right customer (regression: unqualified id in subqueries)", () => {
+  it("spent, last visit and balance are real numbers per customer", async () => {
+    const rows = await listCustomers(royal);
+    const spentSum = rows.reduce((a, r) => a + toCents(r.spent), 0);
+    const txns = await db.select().from(transactions).where(eq(transactions.tenantId, ids.royal));
+    const expected = txns.filter((t) => t.status !== "cancelled" && t.customerId).reduce((a, t) => a + toCents(t.paid), 0);
+    expect(expected).toBeGreaterThan(0);
+    expect(spentSum).toBe(expected);
+    expect(rows.some((r) => r.lastVisit)).toBe(true);
+    // a customer with an unpaid credit sale shows what they owe
+    const c = rows[0].c; const hc = (await db.select().from(services).where(eq(services.tenantId, ids.royal)))[0];
+    await checkout(royal, { customerId: c.id, items: [{ kind: "service", id: hc.id, quantity: 1 }], idempotencyKey: "bal-regress-0001", creditSale: true, payments: [] });
+    const again = (await listCustomers(royal)).find((r) => r.c.id === c.id)!;
+    expect(toCents(again.balance)).toBeGreaterThanOrEqual(toCents(hc.price));
+  });
+});

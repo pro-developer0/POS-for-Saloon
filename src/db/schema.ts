@@ -22,6 +22,7 @@ export const users = pgTable("users", {
   failedLogins: integer("failed_logins").notNull().default(0),
   lockedUntil: tstz("locked_until"),
   emailVerifiedAt: tstz("email_verified_at"),
+  mustChangePassword: boolean("must_change_password").notNull().default(false), // set when an admin issues a temporary password
   tokensValidAfter: tstz("tokens_valid_after"), // sessions issued before this instant are rejected (set on password reset)
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("users_email_uq").on(t.email)]);

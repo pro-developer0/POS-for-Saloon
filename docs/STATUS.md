@@ -3,7 +3,7 @@
 Legend: ✅ done & verified · 🟡 partial · ❌ not done
 
 ## Verified
-- ✅ 108 unit/integration tests (`npm test`) + 30 Playwright browser tests (`npm run test:e2e`) pass: tenant isolation, permissions, booking rules, POS/financials, inventory/purchases, auth, AI failure handling
+- ✅ 120 unit/integration tests (`npm test`) + 33 Playwright browser tests (`npm run test:e2e`) pass: tenant isolation, permissions, booking rules, POS/financials, inventory/purchases, auth, AI failure handling
 - ✅ `npm run build` passes (types + lint); 30 authenticated pages smoke-tested against both demo tenants with 0 server errors
 - ✅ Cross-tenant checks: spoofed tenant cookie, foreign invoice id (404), foreign customer/product/service/staff ids in forms
 
@@ -30,7 +30,8 @@ Legend: ✅ done & verified · 🟡 partial · ❌ not done
 | Expenses + receipts + categories | ✅ | |
 | Reports + CSV export | ✅ | PDF via print |
 | Notifications centre | 🟡 | In-app only; no reminders scheduler, no email/SMS/WhatsApp |
-| Platform admin (tenants, suspend/activate, AI config & usage, audit, health) | 🟡 | No plan/trial editing UI, no user management UI |
+| Platform admin (create client business + owner login, users: reset password / disable, suspend/activate, AI config & usage, audit, health) | ✅ | Temporary password shown once; owner must change it at first login. Admin sees metadata only, never client sales/customers. No plan/billing UI by design |
+| Account page (change own password) | ✅ | Signs out other sessions on change |
 | Free-only AI foundation (providers, limits, usage, failure handling) | ✅ | Tested with mocked fetch only — **never run against a live Ollama/free provider** |
 | AI Advisor, Marketing Studio, retention + inventory insights | 🟡 | Non-streaming; "stop" ignores the reply rather than aborting |
 | AI appointment assistant / smart scheduling | 🟡 | Advisor can list verified free slots; **no AI-initiated booking** (by design) and no scheduling recommendations |

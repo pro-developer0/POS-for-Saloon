@@ -19,6 +19,7 @@ import * as ledger from "@/server/services/ledger";
 import * as coupons from "@/server/services/coupons";
 import * as returns from "@/server/services/returns";
 import * as dayclose from "@/server/services/dayclose";
+import * as adm from "@/server/admin";
 import * as ai from "@/server/ai/service";
 import { zonedToUtc, hm } from "@/lib/time";
 import type { WeekHours } from "@/db/schema";
@@ -392,4 +393,30 @@ export async function previewCouponAction(code: string, subtotalCents: number) {
 }
 export async function closeShiftAction(fd: FormData): Promise<Result> {
   return run(async () => { const row = await dayclose.closeShift(await requireCtx("pos.use"), { openingFloat: s(fd, "openingFloat") || 0, countedCash: s(fd, "countedCash"), note: s(fd, "note") }); revalidatePath("/day-close"); return { message: `Shift closed. Difference: ${row.difference}` }; });
+}
+
+// ================= ACCOUNT / PLATFORM ADMIN TOOLS =================
+export async function changePasswordAction(_: Result | null, fd: FormData): Promise<Result> {
+  try {
+    const u = await getUser(); if (!u) throw new AppError("Please sign in.", "unauthorized");
+    if (limited(`chpw:${u.id}`, 8, 60 * 60_000)) throw new AppError("Too many attempts. Try again later.");
+    if (String(fd.get("password")) !== String(fd.get("confirm"))) throw new AppError("The new passwords do not match.");
+    await adm.changeOwnPassword(await db(), u.id, String(fd.get("current") ?? ""), String(fd.get("password") ?? ""));
+    await createSession(u.id); // old sessions were signed out by the change; keep this one
+    return { ok: true, message: "Password updated." };
+  } catch (e) { return fail(e); }
+}
+export async function adminCreateBusinessAction(fd: FormData): Promise<Result> {
+  return run(async () => {
+    const a = await requirePlatformAdmin();
+    const r = await adm.createBusinessWithOwner(await db(), a.id, { businessName: s(fd, "businessName"), businessType: s(fd, "businessType"), ownerName: s(fd, "ownerName"), ownerEmail: s(fd, "ownerEmail"), password: s(fd, "password") || null, currency: s(fd, "currency") || "PKR", timezone: s(fd, "timezone") || "Asia/Karachi" });
+    revalidatePath("/admin");
+    return { message: r.tempPassword ? `Created "${r.name}". Login: ${r.ownerEmail}  Temporary password: ${r.tempPassword}  (shown once — the client must change it at first login)` : `Created "${r.name}". ${r.ownerEmail} already had an account and is now its owner.`, data: { sticky: true } };
+  });
+}
+export async function adminResetPasswordAction(userId: string): Promise<Result> {
+  return run(async () => { const a = await requirePlatformAdmin(); const r = await adm.resetUserPassword(await db(), a.id, userId); return { message: `New temporary password for ${r.email}: ${r.tempPassword}  (shown once)`, data: { sticky: true } }; });
+}
+export async function adminSetUserDisabledAction(userId: string, disabled: boolean): Promise<Result> {
+  return run(async () => { const a = await requirePlatformAdmin(); await adm.setUserDisabled(await db(), a.id, userId, disabled); revalidatePath("/admin"); });
 }

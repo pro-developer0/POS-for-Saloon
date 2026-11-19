@@ -28,7 +28,7 @@ export function ModalForm({
             start(async () => {
               const r = await action(fd);
               if (!r.ok) { setErr(r.error ?? "Something went wrong"); return; }
-              toast.success(r.message ?? "Saved");
+              toast.success(r.message ?? "Saved", (r.data as { sticky?: boolean } | undefined)?.sticky ? { duration: 120000 } : undefined);
               ref.current?.close(); router.refresh(); onDone?.(r);
             });
           }}
@@ -61,7 +61,7 @@ export function ActionButton({ action, args = [], children, confirm, className =
       if (confirm && !window.confirm(confirm)) return;
       start(async () => {
         const r = await (action as (...a: unknown[]) => Promise<Result>)(...args);
-        if (r.ok) { toast.success(success ?? r.message ?? "Done"); router.refresh(); } else toast.error(r.error ?? "Failed");
+        if (r.ok) { toast.success(success ?? r.message ?? "Done", (r.data as { sticky?: boolean } | undefined)?.sticky ? { duration: 120000 } : undefined); router.refresh(); } else toast.error(r.error ?? "Failed");
       });
     }}>{children}</button>
   );

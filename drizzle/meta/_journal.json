@@ -43,6 +43,13 @@
       "when": 1795119177550,
       "tag": "0005_foamy_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795121754167,
+      "tag": "0006_easy_ser_duncan",
+      "breakpoints": true
     }
   ]
 }

@@ -9,35 +9,64 @@ import { getAiConfig, aiUsageSummary } from "@/server/ai/service";
 import { FREE_PROVIDERS, providerConfigured } from "@/server/ai/providers";
 import { Card, Stat, StatusBadge, Tabs, Field } from "@/components/ui";
 import { ActionButton, ModalForm } from "@/components/forms";
-import { adminAiConfigAction, adminSetTenantStatusAction, adminTestAiAction } from "@/app/actions";
+import { adminAiConfigAction, adminCreateBusinessAction, adminResetPasswordAction, adminSetTenantStatusAction, adminSetUserDisabledAction, adminTestAiAction } from "@/app/actions";
+import { listUsersForAdmin } from "@/server/admin";
+import { BUSINESS_TYPE_OPTIONS } from "@/lib/verticals";
+import { CURRENCIES, TIMEZONES } from "@/lib/constants";
 import { logoutAction } from "@/app/actions";
 
 export const metadata = { title: "Platform admin" };
+const TENANT_ID = sql.raw('"tenants"."id"'); // qualified on purpose: subqueries have their own "id" columns
+
 export default async function Page({ searchParams }: { searchParams: Promise<{ tab?: string; q?: string }> }) {
   const u = await getUser();
   if (!u) redirect("/login");
   if (!u.isPlatformAdmin) redirect("/forbidden");
-  const sp = await searchParams; const tab = ["tenants", "ai", "audit", "health"].includes(sp.tab ?? "") ? sp.tab! : "tenants";
+  if (u.mustChangePassword) redirect("/account");
+  const sp = await searchParams; const tab = ["tenants", "users", "ai", "audit", "health"].includes(sp.tab ?? "") ? sp.tab! : "tenants";
   const d = await db();
-  const tabs = [["tenants", "Businesses"], ["ai", "AI settings & usage"], ["audit", "Audit log"], ["health", "System health"]].map(([k, l]) => ({ key: k, label: l, href: `/admin?tab=${k}` }));
+  const tabs = [["tenants", "Businesses"], ["users", "Users"], ["ai", "AI settings & usage"], ["audit", "Audit log"], ["health", "System health"]].map(([k, l]) => ({ key: k, label: l, href: `/admin?tab=${k}` }));
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6">
       <header className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-brand font-bold text-brandfg">S</div><div><h1 className="text-xl font-semibold">{PRODUCT_NAME} platform admin</h1><p className="text-xs text-muted">Tenant metadata and aggregates only — private business data is not shown here.</p></div></div>
-        <div className="flex gap-2"><Link href="/dashboard" className="btn btn-sm">Workspace</Link><form action={logoutAction}><button className="btn btn-sm">Sign out</button></form></div>
+        <div className="flex gap-2"><Link href="/account" className="btn btn-sm">Account</Link><Link href="/dashboard" className="btn btn-sm">Workspace</Link><form action={logoutAction}><button className="btn btn-sm">Sign out</button></form></div>
       </header>
       <Tabs active={tab} tabs={tabs} />
       {tab === "tenants" && await (async () => {
         const q = sp.q?.trim();
-        const rows = await d.select({ t: tenants, owners: sql<number>`(select count(*) from memberships m where m.tenant_id = ${tenants.id} and m.active)::int`, customers: sql<number>`(select count(*) from customers c where c.tenant_id = ${tenants.id})::int`, sales: sql<number>`(select count(*) from transactions x where x.tenant_id = ${tenants.id})::int` })
+        const rows = await d.select({ t: tenants, owners: sql<number>`(select count(*) from memberships m where m.tenant_id = ${TENANT_ID} and m.active)::int`, ownerEmail: sql<string | null>`(select u2.email from memberships m2 join users u2 on u2.id = m2.user_id where m2.tenant_id = ${TENANT_ID} and m2.role = 'owner' and m2.active order by m2.created_at limit 1)`, customers: sql<number>`(select count(*) from customers c where c.tenant_id = ${TENANT_ID})::int`, sales: sql<number>`(select count(*) from transactions x where x.tenant_id = ${TENANT_ID})::int` })
           .from(tenants).where(q ? or(ilike(tenants.name, `%${q}%`), ilike(tenants.slug, `%${q}%`)) : undefined).orderBy(desc(tenants.createdAt)).limit(200);
         const [{ n: nu }] = await d.select({ n: sql<number>`count(*)::int` }).from(users);
         return (<>
           <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat label="Businesses" value={rows.length} /><Stat label="Active" value={rows.filter((r) => r.t.status === "active").length} /><Stat label="Suspended" value={rows.filter((r) => r.t.status === "suspended").length} /><Stat label="Users" value={nu} /></div>
-          <form className="mb-4 flex gap-2"><input name="q" defaultValue={sp.q} className="input max-w-xs" placeholder="Search businesses…" aria-label="Search" /><input type="hidden" name="tab" value="tenants" /><button className="btn">Search</button></form>
-          <Card><div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Business</th><th>Type</th><th>Status</th><th>Members</th><th>Customers</th><th>Sales</th><th /></tr></thead>
-            <tbody>{rows.map(({ t, owners, customers, sales }) => (<tr key={t.id}><td className="font-medium">{t.name}{t.isDemo && <span className="badge ml-2">demo</span>}<span className="block text-xs font-normal text-muted">{t.currency} · {t.timezone}</span></td><td className="capitalize">{t.businessType.replace(/_/g, " ")}</td><td><StatusBadge status={t.status} /></td><td>{owners}</td><td>{customers}</td><td>{sales}</td>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2"><form className="flex gap-2"><input name="q" defaultValue={sp.q} className="input max-w-xs" placeholder="Search businesses…" aria-label="Search" /><input type="hidden" name="tab" value="tenants" /><button className="btn">Search</button></form>
+            <ModalForm trigger="Create business" title="Create a client business" action={adminCreateBusinessAction} submitLabel="Create business" wide>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Business name"><input name="businessName" required className="input" /></Field>
+                <Field label="Business type"><select name="businessType" required defaultValue="" className="input"><option value="" disabled>Select…</option>{BUSINESS_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+                <Field label="Owner name"><input name="ownerName" required className="input" /></Field>
+                <Field label="Owner email (their login)"><input name="ownerEmail" type="email" required className="input" /></Field>
+                <Field label="Currency"><select name="currency" defaultValue="PKR" className="input">{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
+                <Field label="Timezone"><select name="timezone" defaultValue="Asia/Karachi" className="input">{TIMEZONES.map((z) => <option key={z}>{z}</option>)}</select></Field>
+                <div className="sm:col-span-2"><Field label="Temporary password (optional)" hint="Leave blank to generate one. The owner must change it at first login."><input name="password" type="text" autoComplete="off" className="input" /></Field></div>
+              </div>
+              <p className="text-xs text-muted">The owner finishes setup (logo, colours, hours, tax) after their first login. The type cannot be changed afterwards.</p>
+            </ModalForm></div>
+          <Card><div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Business</th><th>Type</th><th>Status</th><th>Owner</th><th>Members</th><th>Customers</th><th>Sales</th><th /></tr></thead>
+            <tbody>{rows.map(({ t, owners, customers, sales, ownerEmail }) => (<tr key={t.id}><td className="font-medium">{t.name}{t.isDemo && <span className="badge ml-2">demo</span>}<span className="block text-xs font-normal text-muted">{t.currency} · {t.timezone}</span></td><td className="capitalize">{t.businessType.replace(/_/g, " ")}</td><td><StatusBadge status={t.status} /></td><td className="text-muted">{ownerEmail ?? "—"}</td><td>{owners}</td><td>{customers}</td><td>{sales}</td>
               <td><div className="flex justify-end gap-1.5">{t.status !== "active" && <ActionButton action={adminSetTenantStatusAction} args={[t.id, "active"]} className="btn btn-sm btn-primary">Activate</ActionButton>}{t.status !== "suspended" && <ActionButton action={adminSetTenantStatusAction} args={[t.id, "suspended"]} confirm={`Suspend ${t.name}? Their users will lose access immediately.`} className="btn btn-sm btn-danger">Suspend</ActionButton>}</div></td></tr>))}</tbody></table></div></Card></>);
+      })()}
+      {tab === "users" && await (async () => {
+        const rows = await listUsersForAdmin(d, sp.q?.trim());
+        return (<>
+          <form className="mb-4 flex gap-2"><input name="q" defaultValue={sp.q} className="input max-w-xs" placeholder="Search name or email…" aria-label="Search users" /><input type="hidden" name="tab" value="users" /><button className="btn">Search</button></form>
+          <Card><div className="overflow-x-auto"><table className="tbl"><thead><tr><th>User</th><th>Businesses & roles</th><th>Status</th><th /></tr></thead>
+            <tbody>{rows.map((r) => (<tr key={r.id}><td className="font-medium">{r.name}<span className="block text-xs font-normal text-muted">{r.email}</span></td><td className="text-muted">{r.is_admin ? "Platform admin" : r.biz ?? "—"}</td>
+              <td>{r.disabled ? <StatusBadge status="suspended" /> : <StatusBadge status="active" />}{r.must_change && <span className="badge ml-1">must change password</span>}</td>
+              <td><div className="flex justify-end gap-1.5">{!r.is_admin && <>
+                <ActionButton action={adminResetPasswordAction} args={[r.id]} confirm={`Issue a new temporary password for ${r.email}? They will be signed out everywhere.`}>Reset password</ActionButton>
+                <ActionButton action={adminSetUserDisabledAction} args={[r.id, !r.disabled]} confirm={r.disabled ? undefined : `Disable ${r.email}? They will be signed out and cannot log in.`} className={r.disabled ? "btn btn-sm btn-primary" : "btn btn-sm btn-danger"}>{r.disabled ? "Enable" : "Disable"}</ActionButton></>}</div></td></tr>))}</tbody></table></div></Card></>);
       })()}
       {tab === "ai" && await (async () => {
         const cfg = await getAiConfig(d); const usage = await aiUsageSummary(d);

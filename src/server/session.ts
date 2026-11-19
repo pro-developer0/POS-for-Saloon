@@ -55,6 +55,7 @@ export async function requireUser() {
 /** Resolves the tenant workspace from the cookie, but ONLY if the user holds an active membership. */
 export async function requireCtx(perm?: string, module?: Module): Promise<Ctx> {
   const user = await requireUser();
+  if (user.mustChangePassword) redirect("/account"); // temporary password issued by an admin: choose your own first
   const d = await db();
   const wanted = (await cookies()).get(TENANT_COOKIE)?.value;
   let ctx: Ctx | null = null;

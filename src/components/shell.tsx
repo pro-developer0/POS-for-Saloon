@@ -6,7 +6,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useTheme } from "next-themes";
 import {
   LayoutDashboard, CalendarDays, CalendarRange, ShoppingCart, Users, Scissors, UserCog, Boxes, Truck, Receipt, FileText, CreditCard,
-  BarChart3, Bell, Sparkles, Settings, LifeBuoy, Menu, PanelLeftClose, PanelLeftOpen, Sun, Moon, Monitor, Search, LogOut, ShieldCheck, Wallet, Hourglass, Banknote, Ticket,
+  BarChart3, Bell, Sparkles, Settings, LifeBuoy, Menu, PanelLeftClose, PanelLeftOpen, Sun, Moon, Monitor, Search, LogOut, ShieldCheck, Wallet, Hourglass, Banknote, Ticket, UserRound,
 } from "lucide-react";
 
 const ICONS = { LayoutDashboard, CalendarDays, CalendarRange, ShoppingCart, Users, Scissors, UserCog, Boxes, Truck, Receipt, FileText, CreditCard, BarChart3, Bell, Sparkles, Settings, LifeBuoy, ShieldCheck, Wallet, Hourglass, Banknote, Ticket };
@@ -100,6 +100,7 @@ export function AppShell({ nav, tenantName, logoUrl, userName, unread, logoutAct
             <Link href="/notifications" className="btn btn-ghost btn-sm relative" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}>
               <Bell size={17} />{unread > 0 && <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-bad px-1 text-[10px] font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
             </Link>
+            <Link href="/account" className="btn btn-ghost btn-sm" aria-label={`Account: ${userName}`} title={`Account (${userName})`}><UserRound size={17} /></Link>
             <ThemeToggle />
             <form action={logoutAction}>
               <button className="btn btn-ghost btn-sm" aria-label={`Sign out ${userName}`} title={`Sign out (${userName})`}><LogOut size={17} /></button>

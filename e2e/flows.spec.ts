@@ -14,7 +14,7 @@ async function submitLogin(page: Page, email: string, password: string) {
 }
 async function login(page: Page, email: string, password = PW) {
   await submitLogin(page, email, password);
-  await expect(page).toHaveURL(/dashboard|admin|onboarding/, { timeout: 30_000 }); // wait until the session exists
+  await expect(page).toHaveURL(/dashboard|admin|onboarding|account/, { timeout: 30_000 }); // wait until the session exists
 }
 
 test("wrong password is rejected with a clear message", async ({ page }) => {
@@ -422,5 +422,66 @@ test.describe("POS extras: returns, coupons, credit, receipts, day close", () =>
     await expect(page.getByText(/Shift closed/)).toBeVisible();
     await page.reload();
     await expect(page.getByRole("cell", { name: /Balanced|PKR/ }).first()).toBeVisible();
+  });
+});
+
+test.describe("platform admin tools", () => {
+  test("admin creates a client; the client must replace the temporary password at first login", async ({ page }) => {
+    await login(page, "admin@salonpro.local");
+    await expect(page.getByRole("heading", { name: /platform admin/ })).toBeVisible();
+    await page.getByRole("button", { name: "Create business" }).click();
+    const dlg = page.getByRole("dialog");
+    const email = `client${Date.now()}@example.test`;
+    await dlg.locator("input[name=businessName]").fill("E2E Client Pharmacy");
+    await dlg.locator("select[name=businessType]").selectOption("pharmacy");
+    await dlg.locator("input[name=ownerName]").fill("Client Owner");
+    await dlg.locator("input[name=ownerEmail]").fill(email);
+    await dlg.getByRole("button", { name: "Create business" }).click();
+    const toastText = await page.getByText(/Temporary password:/).first().innerText();
+    const temp = /Temporary password:\s*(\S+)/.exec(toastText)![1];
+    await expect(page.getByRole("cell", { name: "E2E Client Pharmacy" })).toBeVisible();
+
+    await page.context().clearCookies();
+    await submitLogin(page, email, temp);
+    await expect(page).toHaveURL(/account/);
+    await expect(page.getByRole("heading", { name: "Choose your own password" })).toBeVisible();
+    await page.goto("/dashboard"); // cannot use the app until the password is changed
+    await expect(page).toHaveURL(/account/);
+    await page.getByLabel(/Temporary password you were given/).fill(temp);
+    await page.getByLabel("New password", { exact: true }).fill("My-Own-Password-9");
+    await page.getByLabel("Confirm new password").fill("My-Own-Password-9");
+    await page.getByRole("button", { name: "Change password" }).click();
+    await expect(page.getByText("Password updated.")).toBeVisible();
+    await page.getByRole("link", { name: "Continue", exact: true }).click();
+    await expect(page).toHaveURL(/onboarding/); // a new client sets up their business next
+
+    await page.context().clearCookies();
+    await submitLogin(page, email, temp); // the temporary password no longer works
+    await expect(page.locator("p[role=alert]")).toContainText("Invalid email or password");
+  });
+
+  test("admin can reset a password and disable/enable a user", async ({ page }) => {
+    await login(page, "admin@salonpro.local");
+    await page.goto("/admin?tab=users&q=glow");
+    const row = page.getByRole("row", { name: /owner@glow.demo/ });
+    page.once("dialog", (d) => d.accept());
+    await row.getByRole("button", { name: "Disable" }).click();
+    await expect(row.getByRole("button", { name: "Enable" })).toBeVisible();
+    await page.context().clearCookies();
+    await submitLogin(page, "owner@glow.demo", PW);
+    await expect(page.locator("p[role=alert]")).toContainText(/disabled/i);
+    await login(page, "admin@salonpro.local");
+    await page.goto("/admin?tab=users&q=glow");
+    await page.getByRole("row", { name: /owner@glow.demo/ }).getByRole("button", { name: "Enable" }).click();
+    await expect(page.getByRole("row", { name: /owner@glow.demo/ }).getByRole("button", { name: "Disable" })).toBeVisible();
+    page.once("dialog", (d) => d.accept());
+    await page.getByRole("row", { name: /owner@royal.demo/ }).count(); // exists on the full list
+  });
+
+  test("account page is available to every user", async ({ page }) => {
+    await login(page, "owner@royal.demo");
+    await page.getByRole("link", { name: /^Account:/ }).click();
+    await expect(page.getByRole("heading", { name: "Your account" })).toBeVisible();
+    await expect(page.getByLabel("Current password")).toBeVisible();
   });
 });

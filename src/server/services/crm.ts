@@ -8,6 +8,8 @@ const emptyToNull = (v: unknown) => (v === "" ? null : v);
 const opt = (s: z.ZodTypeAny) => z.preprocess(emptyToNull, s.nullable().optional());
 
 // ---------------- Customers ----------------
+// Subqueries need the outer table named explicitly: an unqualified "id" would silently bind to the subquery's own table.
+const CUST_ID = sql.raw('"customers"."id"');
 export const customerSchema = z.object({
   name: z.string().trim().min(1).max(120),
   phone: opt(z.string().trim().max(40)),
@@ -28,10 +30,10 @@ export async function listCustomers(ctx: Ctx, o: { q?: string; tag?: string; arc
   if (o.tag) conds.push(sql`${customers.tags} @> ${JSON.stringify([o.tag])}::jsonb`);
   return ctx.db.select({
     c: customers,
-    lastVisit: sql<Date | null>`(select max(a.starts_at) from appointments a where a.customer_id = ${customers.id} and a.tenant_id = ${ctx.tenantId} and a.status = 'completed')`,
-    nextAppt: sql<Date | null>`(select min(a.starts_at) from appointments a where a.customer_id = ${customers.id} and a.tenant_id = ${ctx.tenantId} and a.starts_at > now() and a.status in ('pending','confirmed'))`,
-    spent: sql<string>`coalesce((select sum(t.paid) from transactions t where t.customer_id = ${customers.id} and t.tenant_id = ${ctx.tenantId} and t.status <> 'cancelled'),0)`,
-    balance: sql<string>`greatest(0, coalesce((select sum(t.total - t.paid) from transactions t where t.customer_id = ${customers.id} and t.tenant_id = ${ctx.tenantId} and t.status <> 'cancelled'),0))`,
+    lastVisit: sql<Date | null>`(select max(a.starts_at) from appointments a where a.customer_id = ${CUST_ID} and a.tenant_id = ${ctx.tenantId} and a.status = 'completed')`,
+    nextAppt: sql<Date | null>`(select min(a.starts_at) from appointments a where a.customer_id = ${CUST_ID} and a.tenant_id = ${ctx.tenantId} and a.starts_at > now() and a.status in ('pending','confirmed'))`,
+    spent: sql<string>`coalesce((select sum(t.paid) from transactions t where t.customer_id = ${CUST_ID} and t.tenant_id = ${ctx.tenantId} and t.status <> 'cancelled'),0)`,
+    balance: sql<string>`greatest(0, coalesce((select sum(t.total - t.paid) from transactions t where t.customer_id = ${CUST_ID} and t.tenant_id = ${ctx.tenantId} and t.status <> 'cancelled'),0))`,
   }).from(customers).where(and(...conds)).orderBy(asc(customers.name)).limit(500);
 }
 
