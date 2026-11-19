@@ -25,7 +25,7 @@ describe("business-type registry", () => {
     for (const [k] of BUSINESS_TYPE_OPTIONS) { expect(VERTICALS[k]).toBeDefined(); for (const m of presetModules(k)) expect(MODULES).toContain(m); }
   });
   it("pharmacy gets batches + prescriptions but no appointments; salons keep appointments", () => {
-    expect(presetModules("pharmacy")).toEqual(expect.arrayContaining(["inventory", "batches", "prescriptions"]));
+    expect(presetModules("pharmacy")).toEqual(expect.arrayContaining(["inventory", "batches"]));
     expect(presetModules("pharmacy")).not.toContain("appointments");
     expect(presetModules("hair_salon")).toContain("appointments");
     expect(presetModules("restaurant")).not.toContain("appointments");

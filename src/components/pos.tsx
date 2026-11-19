@@ -6,8 +6,12 @@ import { toast } from "sonner";
 import { Minus, Plus, Trash2, Search } from "lucide-react";
 import { checkoutAction } from "@/app/actions";
 
-type Item = { id: string; name: string; price: string; taxable: boolean; stock?: number; category?: string | null };
-type Line = { kind: "service" | "product"; id: string; name: string; unit: number; taxable: boolean; qty: number; discount: number; stock?: number };
+type Item = {
+  id: string; name: string; price: string; taxable: boolean; stock?: number; category?: string | null;
+  generic?: string | null; strength?: string | null; unitLabel?: string; packLabel?: string | null; unitsPerPack?: number; packPrice?: string | null;
+  nearest?: string | null; expired?: number; // pharmacy: nearest in-date expiry, units that are expired and cannot be sold
+};
+type Line = { kind: "service" | "product"; id: string; name: string; unit: number; taxable: boolean; qty: number; discount: number; stock?: number; pack?: boolean; perPack?: number };
 type Pay = { method: string; amount: string };
 
 const c = (v: string | number) => Math.round(Number(v || 0) * 100);
@@ -51,19 +55,23 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
     return { sub, od, tax, total, paid, due: total - paid };
   }, [cart, orderDisc, pays, taxRate]);
 
-  const list = (tab === "service" ? services : products).filter((i) => i.name.toLowerCase().includes(q.toLowerCase()));
-  const add = (kind: "service" | "product", i: Item) => setCart((cs) => {
-    const ex = cs.find((l) => l.kind === kind && l.id === i.id);
-    if (ex) return cs.map((l) => (l === ex ? { ...l, qty: Math.min(l.qty + 1, kind === "product" ? i.stock ?? 999 : 999) } : l));
-    if (kind === "product" && i.stock !== undefined && i.stock < 1) { toast.error(`${i.name} is out of stock`); return cs; }
-    return [...cs, { kind, id: i.id, name: i.name, unit: c(i.price), taxable: i.taxable, qty: 1, discount: 0, stock: i.stock }];
+  const list = (tab === "service" ? services : products).filter((i) => `${i.name} ${i.generic ?? ""} ${i.strength ?? ""}`.toLowerCase().includes(q.toLowerCase()));
+  const add = (kind: "service" | "product", i: Item, pack = false) => setCart((cs) => {
+    const per = pack ? i.unitsPerPack ?? 1 : 1;
+    const used = cs.filter((l) => l.kind === kind && l.id === i.id).reduce((a, l) => a + l.qty * (l.pack ? l.perPack ?? 1 : 1), 0);
+    if (kind === "product" && i.stock !== undefined && used + per > i.stock) { toast.error(i.stock < 1 ? `${i.name} is out of stock` : `Not enough ${i.name} in stock`); return cs; }
+    const ex = cs.find((l) => l.kind === kind && l.id === i.id && !!l.pack === pack);
+    if (ex) return cs.map((l) => (l === ex ? { ...l, qty: l.qty + 1 } : l));
+    const unit = pack ? (i.packPrice != null ? c(i.packPrice) : c(i.price) * per) : c(i.price);
+    const name = pack ? `${i.name} (${i.packLabel || "pack"} of ${per})` : i.name;
+    return [...cs, { kind, id: i.id, name, unit, taxable: i.taxable, qty: 1, discount: 0, stock: i.stock, pack, perPack: per }];
   });
 
   function pay() {
     start(async () => {
       const r = await checkoutAction({
         customerId: customerId || null, staffId: staffId || null, appointmentId: pre?.appointmentId ?? null, idempotencyKey: key, creditSale: credit,
-        items: cart.map((l) => ({ kind: l.kind, id: l.id, quantity: l.qty, discount: l.discount / 100 })), discount: t.od / 100,
+        items: cart.map((l) => ({ kind: l.kind, id: l.id, quantity: l.qty, pack: !!l.pack, discount: l.discount / 100 })), discount: t.od / 100,
         payments: pays.filter((p) => c(p.amount) > 0).map((p) => ({ method: p.method, amount: Number(p.amount) })), notes,
       });
       if (!r.ok) { toast.error(r.error ?? "Checkout failed"); return; }
@@ -95,11 +103,21 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
           {list.map((i) => {
             const out = tab === "product" && i.stock !== undefined && i.stock < 1;
             return (
-              <button key={i.id} disabled={out} onClick={() => add(tab, i)} className="card p-3 text-left transition hover:-translate-y-0.5 hover:border-brand active:scale-[.98] disabled:opacity-40">
-                <p className="line-clamp-2 text-sm font-semibold">{i.name}</p>
-                <p className="mt-1 text-sm text-brand">{fmt(c(i.price))}</p>
-                {tab === "product" && i.stock !== undefined && <p className={`mt-0.5 text-xs ${out ? "text-bad" : "text-muted"}`}>{out ? "Out of stock" : `${i.stock} in stock`}</p>}
-              </button>
+              <div key={i.id} className={`card flex flex-col transition hover:-translate-y-0.5 hover:border-brand ${out ? "opacity-50" : ""}`}>
+                <button disabled={out} onClick={() => add(tab, i)} className="flex-1 p-3 text-left active:scale-[.98] disabled:cursor-not-allowed" aria-label={`Add ${i.name}${i.strength ? " " + i.strength : ""}`}>
+                  <p className="line-clamp-2 text-sm font-semibold">{i.name}</p>
+                  {(i.strength || i.generic) && <p className="line-clamp-1 text-[11px] text-muted">{[i.generic, i.strength].filter(Boolean).join(" · ")}</p>}
+                  <p className="mt-1 text-sm text-brand">{fmt(c(i.price))}{i.unitLabel && i.unitLabel !== "unit" ? <span className="text-xs text-muted"> / {i.unitLabel}</span> : null}</p>
+                  {tab === "product" && i.stock !== undefined && <p className={`mt-0.5 text-xs ${out ? "text-bad" : "text-muted"}`}>{out ? "Out of stock" : `${i.stock} ${i.unitLabel && i.unitLabel !== "unit" ? i.unitLabel + "s" : "in stock"}`}</p>}
+                  {tab === "product" && i.nearest && <p className="text-[11px] text-muted">Exp {i.nearest}</p>}
+                  {tab === "product" && !!i.expired && <p className="text-[11px] font-semibold text-bad">{i.expired} expired — not sellable</p>}
+                </button>
+                {tab === "product" && (i.unitsPerPack ?? 1) > 1 && !out && (
+                  <button onClick={() => add(tab, i, true)} className="border-t border-line px-3 py-1.5 text-left text-xs font-semibold text-brand hover:bg-surface2" aria-label={`Add one ${i.packLabel || "pack"} of ${i.name}`}>
+                    + {i.packLabel || "pack"} of {i.unitsPerPack} · {fmt(i.packPrice != null ? c(i.packPrice) : c(i.price) * (i.unitsPerPack ?? 1))}
+                  </button>
+                )}
+              </div>
             );
           })}
           {list.length === 0 && <p className="col-span-full py-10 text-center text-sm text-muted">Nothing found.</p>}
@@ -114,13 +132,13 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
         <ul className="my-3 flex-1 space-y-2">
           {cart.length === 0 && <li className="py-8 text-center text-sm text-muted">Cart is empty. Tap a service or product.</li>}
           {cart.map((l, i) => (
-            <li key={l.kind + l.id} className="rounded-xl border border-line p-2.5 text-sm">
+            <li key={l.kind + l.id + (l.pack ? "-pack" : "")} className="rounded-xl border border-line p-2.5 text-sm">
               <div className="flex items-start justify-between gap-2"><span className="font-medium">{l.name}</span><button aria-label={`Remove ${l.name}`} className="text-muted hover:text-bad" onClick={() => setCart(cart.filter((_, j) => j !== i))}><Trash2 size={15} /></button></div>
               <div className="mt-2 flex items-center justify-between">
                 <div className="flex items-center gap-1">
                   <button aria-label="Decrease" className="btn btn-sm !px-2" onClick={() => setCart(cart.map((x, j) => (j === i ? { ...x, qty: Math.max(1, x.qty - 1) } : x)))}><Minus size={13} /></button>
                   <span className="w-7 text-center font-semibold">{l.qty}</span>
-                  <button aria-label="Increase" className="btn btn-sm !px-2" onClick={() => setCart(cart.map((x, j) => (j === i ? { ...x, qty: Math.min(x.qty + 1, x.stock ?? 999) } : x)))}><Plus size={13} /></button>
+                  <button aria-label="Increase" className="btn btn-sm !px-2" onClick={() => setCart(cart.map((x, j) => (j === i ? { ...x, qty: Math.min(x.qty + 1, x.stock !== undefined ? Math.max(1, Math.floor(x.stock / (x.pack ? x.perPack ?? 1 : 1))) : 999) } : x)))}><Plus size={13} /></button>
                 </div>
                 <input aria-label={`Discount for ${l.name}`} className="input !h-8 w-20 text-right" type="number" min="0" step="0.01" placeholder="Disc." value={l.discount ? l.discount / 100 : ""} onChange={(e) => setCart(cart.map((x, j) => (j === i ? { ...x, discount: c(e.target.value) } : x)))} />
                 <span className="w-20 text-right font-semibold">{fmt(l.unit * l.qty - l.discount)}</span>

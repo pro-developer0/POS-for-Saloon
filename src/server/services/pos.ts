@@ -2,8 +2,10 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   transactions, transactionItems, payments, invoices, commissions, products, services, staff, customers,
-  inventoryMovements, tenants, appointments, notifications,
+  inventoryMovements, tenants, appointments, notifications, transactionItemBatches, productBatches,
 } from "@/db/schema";
+import type { DB } from "@/db/client";
+import { allocateFefo, batchesOn } from "./batches";
 import { AppError, audit, need, type Ctx } from "../ctx";
 import { fromCents, pctOf, toCents } from "@/lib/money";
 
@@ -17,6 +19,7 @@ export const checkoutSchema = z.object({
   items: z.array(z.object({
     kind: z.enum(["service", "product"]), id: z.string().uuid(),
     quantity: z.coerce.number().int().min(1).max(999).default(1),
+    pack: z.boolean().default(false), // sell whole packs (strip/box) instead of single units
     discount: amt.default(0), staffId: z.string().uuid().nullable().optional(),
   })).min(1, "Add at least one item").max(100),
   discount: amt.default(0),
@@ -45,7 +48,7 @@ export async function checkout(ctx: Ctx, raw: unknown): Promise<CheckoutResult> 
   try {
     return await ctx.db.transaction(async (tx) => {
       const tctx = { ...ctx, db: tx as unknown as Ctx["db"] };
-      const pendingMovements: { productId: string; delta: number; after: number }[] = [];
+      const pendingMovements: { productId: string; delta: number; after: number; batchId?: string }[] = [];
       // validate ownership of referenced entities
       if (v.customerId) {
         const [c] = await tx.select({ id: customers.id }).from(customers).where(and(eq(customers.id, v.customerId), eq(customers.tenantId, ctx.tenantId)));
@@ -66,15 +69,19 @@ export async function checkout(ctx: Ctx, raw: unknown): Promise<CheckoutResult> 
       const svcMap = new Map(svcRows.map((s) => [s.id, s]));
       const prodMap = new Map(prodRows.map((p) => [p.id, p]));
 
-      type Line = { kind: "service" | "product"; id: string; name: string; qty: number; unit: number; disc: number; taxable: boolean; staffId: string | null; net: number; tax: number; commissionPct: string };
+      type Line = { kind: "service" | "product"; id: string; name: string; stockUnits: number; qty: number; unit: number; disc: number; taxable: boolean; staffId: string | null; net: number; tax: number; commissionPct: string };
       const lines: Line[] = v.items.map((i) => {
         const src = i.kind === "service" ? svcMap.get(i.id) : prodMap.get(i.id);
         if (!src) throw new AppError(`${i.kind === "service" ? "Service" : "Product"} not found`, "not_found");
         if (!src.active) throw new AppError(`${src.name} is inactive`);
-        const unit = toCents(i.kind === "service" ? (src as typeof svcRows[number]).price : (src as typeof prodRows[number]).sellPrice);
+        const prod = i.kind === "product" ? (src as typeof prodRows[number]) : null;
+        if (i.pack && (!prod || prod.unitsPerPack <= 1)) throw new AppError(`${src.name} has no pack size set.`);
+        const mult = i.pack && prod ? prod.unitsPerPack : 1;
+        const unit = prod ? (i.pack ? (prod.packPrice != null ? toCents(prod.packPrice) : toCents(prod.sellPrice) * prod.unitsPerPack) : toCents(prod.sellPrice)) : toCents((src as typeof svcRows[number]).price);
+        const label = i.pack && prod ? `${src.name} (${prod.packLabel || "pack"} of ${prod.unitsPerPack})` : src.name;
         const gross = unit * i.quantity;
         if (i.discount > gross) throw new AppError(`Discount exceeds line amount for ${src.name}`);
-        return { kind: i.kind, id: i.id, name: src.name, qty: i.quantity, unit, disc: i.discount, taxable: src.taxable, staffId: i.staffId ?? v.staffId ?? null, net: gross - i.discount, tax: 0, commissionPct: i.kind === "service" ? (src as typeof svcRows[number]).commissionPct : "0" };
+        return { kind: i.kind, id: i.id, name: label, stockUnits: prod && prod.trackStock ? i.quantity * mult : 0, qty: i.quantity, unit, disc: i.discount, taxable: src.taxable, staffId: i.staffId ?? v.staffId ?? null, net: gross - i.discount, tax: 0, commissionPct: i.kind === "service" ? (src as typeof svcRows[number]).commissionPct : "0" };
       });
 
       const sub = lines.reduce((s, l) => s + l.net, 0);
@@ -97,12 +104,16 @@ export async function checkout(ctx: Ctx, raw: unknown): Promise<CheckoutResult> 
       if (paid < total && !v.creditSale) throw new AppError("Payment is less than the total. Enable 'leave balance on invoice' for partial payment.");
       const status = paid === total ? "paid" : paid > 0 ? "partial" : "unpaid";
 
-      // stock deduction (atomic and guarded)
-      for (const l of lines.filter((x) => x.kind === "product" && prodMap.get(x.id)?.trackStock)) {
-        const [p] = await tx.update(products).set({ quantity: sql`${products.quantity} - ${l.qty}` })
-          .where(and(eq(products.id, l.id), eq(products.tenantId, ctx.tenantId), sql`${products.quantity} >= ${l.qty}`)).returning({ q: products.quantity });
+      // stock deduction (atomic and guarded). Batch-managed products sell in-date batches soonest-expiry-first.
+      const allocs = new Map<number, { batchId: string; qty: number }[]>();
+      for (const [idx, l] of lines.entries()) {
+        if (l.kind !== "product" || !l.stockUnits) continue;
+        const alloc = batchesOn(ctx) ? await allocateFefo(tx as unknown as DB, ctx, l.id, l.stockUnits, l.name) : null;
+        const [p] = await tx.update(products).set({ quantity: sql`${products.quantity} - ${l.stockUnits}` })
+          .where(and(eq(products.id, l.id), eq(products.tenantId, ctx.tenantId), sql`${products.quantity} >= ${l.stockUnits}`)).returning({ q: products.quantity });
         if (!p) throw new AppError(`Not enough stock for ${l.name}`, "conflict");
-        pendingMovements.push({ productId: l.id, delta: -l.qty, after: p.q });
+        if (alloc) { allocs.set(idx, alloc); for (const a of alloc) pendingMovements.push({ productId: l.id, delta: -a.qty, after: p.q, batchId: a.batchId }); }
+        else pendingMovements.push({ productId: l.id, delta: -l.stockUnits, after: p.q });
       }
 
       const [txn] = await tx.insert(transactions).values({
@@ -111,18 +122,20 @@ export async function checkout(ctx: Ctx, raw: unknown): Promise<CheckoutResult> 
         status, notes: v.notes ?? null, createdBy: ctx.userId,
       }).returning();
 
-      await tx.insert(transactionItems).values(lines.map((l) => ({
+      const insertedItems = await tx.insert(transactionItems).values(lines.map((l) => ({
         tenantId: ctx.tenantId, transactionId: txn.id, kind: l.kind,
         serviceId: l.kind === "service" ? l.id : null, productId: l.kind === "product" ? l.id : null, staffId: l.staffId,
-        name: l.name, quantity: l.qty, unitPrice: fromCents(l.unit), discount: fromCents(l.disc), tax: fromCents(l.tax), lineTotal: fromCents(l.net + l.tax),
-      })));
+        name: l.name, quantity: l.qty, unitPrice: fromCents(l.unit), discount: fromCents(l.disc), tax: fromCents(l.tax), lineTotal: fromCents(l.net + l.tax), stockUnits: l.stockUnits,
+      }))).returning({ id: transactionItems.id });
+      const batchRows = [...allocs.entries()].flatMap(([idx, al]) => al.map((a) => ({ tenantId: ctx.tenantId, itemId: insertedItems[idx].id, batchId: a.batchId, quantity: a.qty })));
+      if (batchRows.length) await tx.insert(transactionItemBatches).values(batchRows);
       if (v.payments.some((p) => p.amount > 0)) {
         await tx.insert(payments).values(v.payments.filter((p) => p.amount > 0).map((p) => ({
           tenantId: ctx.tenantId, transactionId: txn.id, method: p.method, amount: fromCents(p.amount), note: p.note, createdBy: ctx.userId,
         })));
       }
       for (const m of pendingMovements.splice(0)) {
-        await tx.insert(inventoryMovements).values({ tenantId: ctx.tenantId, productId: m.productId, delta: m.delta, balanceAfter: m.after, reason: "sale", refType: "transaction", refId: txn.id, userId: ctx.userId });
+        await tx.insert(inventoryMovements).values({ tenantId: ctx.tenantId, productId: m.productId, delta: m.delta, balanceAfter: m.after, reason: "sale", refType: "transaction", refId: txn.id, batchId: m.batchId ?? null, userId: ctx.userId });
       }
 
       // invoice number: atomic per-tenant counter
@@ -202,9 +215,18 @@ export async function voidSale(ctx: Ctx, transactionId: string, reason: string) 
     if (toCents(t.paid) > 0) throw new AppError("Sales with payments cannot be voided. Issue a refund process instead.");
     const items = await tx.select().from(transactionItems).where(and(eq(transactionItems.transactionId, transactionId), eq(transactionItems.tenantId, ctx.tenantId)));
     for (const i of items.filter((x) => x.kind === "product" && x.productId)) {
-      const [p] = await tx.update(products).set({ quantity: sql`${products.quantity} + ${i.quantity}` }).where(and(eq(products.id, i.productId!), eq(products.tenantId, ctx.tenantId), eq(products.trackStock, true))).returning({ q: products.quantity });
+      const units = i.stockUnits || i.quantity; // rows from before pack selling have stockUnits = 0
+      const [p] = await tx.update(products).set({ quantity: sql`${products.quantity} + ${units}` }).where(and(eq(products.id, i.productId!), eq(products.tenantId, ctx.tenantId), eq(products.trackStock, true))).returning({ q: products.quantity });
       if (!p) continue; // untracked items have no stock to return
-      await tx.insert(inventoryMovements).values({ tenantId: ctx.tenantId, productId: i.productId!, delta: i.quantity, balanceAfter: p.q, reason: "return", refType: "transaction", refId: transactionId, userId: ctx.userId });
+      const bl = await tx.select().from(transactionItemBatches).where(and(eq(transactionItemBatches.itemId, i.id), eq(transactionItemBatches.tenantId, ctx.tenantId)));
+      if (bl.length) {
+        for (const r of bl) {
+          await tx.update(productBatches).set({ quantity: sql`${productBatches.quantity} + ${r.quantity}` }).where(and(eq(productBatches.id, r.batchId), eq(productBatches.tenantId, ctx.tenantId)));
+          await tx.insert(inventoryMovements).values({ tenantId: ctx.tenantId, productId: i.productId!, delta: r.quantity, balanceAfter: p.q, reason: "return", refType: "transaction", refId: transactionId, batchId: r.batchId, userId: ctx.userId });
+        }
+      } else {
+        await tx.insert(inventoryMovements).values({ tenantId: ctx.tenantId, productId: i.productId!, delta: units, balanceAfter: p.q, reason: "return", refType: "transaction", refId: transactionId, userId: ctx.userId });
+      }
     }
     await tx.update(transactions).set({ status: "cancelled", notes: `${t.notes ?? ""} [VOID: ${reason}]`.trim() }).where(eq(transactions.id, transactionId));
     await tx.update(invoices).set({ cancelled: true }).where(eq(invoices.transactionId, transactionId));

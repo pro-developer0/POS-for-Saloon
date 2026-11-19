@@ -14,6 +14,7 @@ import * as appts from "@/server/services/appointments";
 import * as pos from "@/server/services/pos";
 import * as inv from "@/server/services/inventory";
 import * as rep from "@/server/services/reports";
+import * as bat from "@/server/services/batches";
 import * as ai from "@/server/ai/service";
 import { zonedToUtc, hm } from "@/lib/time";
 import type { WeekHours } from "@/db/schema";
@@ -261,17 +262,18 @@ export async function voidSaleAction(fd: FormData): Promise<Result> { return run
 
 // ================= INVENTORY / SUPPLIERS / PURCHASES / EXPENSES =================
 export async function saveProductAction(fd: FormData): Promise<Result> {
-  return run(async () => { await inv.saveProduct(await requireCtx("inventory.manage"), { name: s(fd, "name"), sku: s(fd, "sku"), barcode: s(fd, "barcode"), category: s(fd, "category"), description: s(fd, "description"), costPrice: s(fd, "costPrice") || 0, sellPrice: s(fd, "sellPrice") || 0, minStock: s(fd, "minStock") || 5, supplierId: s(fd, "supplierId"), taxable: b(fd, "taxable"), trackStock: fd.has("trackStockPresent") ? b(fd, "trackStock") : true, active: fd.has("activePresent") ? b(fd, "active") : true, initialQuantity: s(fd, "initialQuantity") || 0 }, s(fd, "id") || undefined); });
+  return run(async () => { await inv.saveProduct(await requireCtx("inventory.manage"), { name: s(fd, "name"), sku: s(fd, "sku"), barcode: s(fd, "barcode"), category: s(fd, "category"), description: s(fd, "description"), costPrice: s(fd, "costPrice") || 0, sellPrice: s(fd, "sellPrice") || 0, minStock: s(fd, "minStock") || 5, supplierId: s(fd, "supplierId"), taxable: b(fd, "taxable"), trackStock: fd.has("trackStockPresent") ? b(fd, "trackStock") : true, active: fd.has("activePresent") ? b(fd, "active") : true, initialQuantity: s(fd, "initialQuantity") || 0, genericName: s(fd, "genericName"), strength: s(fd, "strength"), dosageForm: s(fd, "dosageForm"), unitLabel: s(fd, "unitLabel"), packLabel: s(fd, "packLabel"), unitsPerPack: s(fd, "unitsPerPack"), packPrice: s(fd, "packPrice"), batchNo: s(fd, "batchNo"), openingExpiry: s(fd, "openingExpiry") }, s(fd, "id") || undefined); });
 }
 export async function adjustStockAction(fd: FormData): Promise<Result> {
-  return run(async () => { await inv.adjustStock(await requireCtx("inventory.manage"), s(fd, "productId"), Number(s(fd, "delta")), (s(fd, "reason") || "adjustment") as never, s(fd, "note")); });
+  return run(async () => { await inv.adjustStock(await requireCtx("inventory.manage"), s(fd, "productId"), Number(s(fd, "delta")), (s(fd, "reason") || "adjustment") as never, s(fd, "note"), { batchId: s(fd, "batchId") || undefined, batchNo: s(fd, "batchNo") || undefined, expiryDate: s(fd, "expiryDate") || undefined }); });
 }
 export async function saveSupplierAction(fd: FormData): Promise<Result> {
   return run(async () => { await inv.saveSupplier(await requireCtx("suppliers.manage"), { name: s(fd, "name"), contactName: s(fd, "contactName"), phone: s(fd, "phone"), email: s(fd, "email"), address: s(fd, "address"), notes: s(fd, "notes") }, s(fd, "id") || undefined); });
 }
 export async function createPurchaseAction(fd: FormData): Promise<Result> {
-  return run(async () => { await inv.createPurchase(await requireCtx("suppliers.manage"), { supplierId: s(fd, "supplierId"), reference: s(fd, "reference"), items: [{ productId: s(fd, "productId"), quantity: s(fd, "quantity"), unitCost: s(fd, "unitCost") }] }); });
+  return run(async () => { await inv.createPurchase(await requireCtx("suppliers.manage"), { supplierId: s(fd, "supplierId"), reference: s(fd, "reference"), items: [{ productId: s(fd, "productId"), quantity: s(fd, "quantity"), unitCost: s(fd, "unitCost"), packs: b(fd, "packs"), batchNo: s(fd, "batchNo"), expiryDate: s(fd, "expiryDate") }] }); });
 }
+export async function writeOffBatchAction(batchId: string): Promise<Result> { return run(async () => { const u = await bat.writeOffBatch(await requireCtx("inventory.manage", "batches"), batchId); return { message: `${u} unit(s) written off` }; }); }
 export async function receivePurchaseAction(id: string): Promise<Result> { return run(async () => { await inv.receivePurchase(await requireCtx("suppliers.manage"), id); }); }
 export async function cancelPurchaseAction(id: string): Promise<Result> { return run(async () => { await inv.cancelPurchase(await requireCtx("suppliers.manage"), id); }); }
 export async function saveExpenseAction(fd: FormData): Promise<Result> {

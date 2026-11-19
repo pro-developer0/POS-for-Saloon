@@ -26,7 +26,7 @@ export default async function Page() {
       <Card title="Team & access" className="mt-6" action={canMembers ? <ModalForm trigger="Add member" triggerClass="btn btn-sm btn-primary" title="Add team member" action={addMemberAction}>
         <Field label="Email"><input name="email" type="email" required className="input" /></Field>
         <Field label="Name (for new users)"><input name="name" className="input" /></Field>
-        <Field label="Role"><select name="role" className="input">{ROLES.filter((r) => r !== "owner").map((r) => <option key={r} value={r}>{r}</option>)}</select></Field>
+        <Field label="Role"><select name="role" className="input">{ROLES.filter((r) => r !== "owner" && (r !== "pharmacist" || t.businessType === "pharmacy")).map((r) => <option key={r} value={r}>{r}</option>)}</select></Field>
         <Field label="Temporary password (only if the person has no account yet)"><input name="password" type="password" minLength={10} className="input" autoComplete="new-password" /></Field>
       </ModalForm> : null}>
         <div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th /></tr></thead>

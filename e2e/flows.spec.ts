@@ -263,3 +263,61 @@ test("pharmacy business: no appointment features, pharmacy wording, modules are 
   await expect(page.getByLabel(/Batches & expiry/)).toBeChecked();
   await expect(page.getByLabel(/Appointments & calendar/)).not.toBeChecked();
 });
+
+test.describe("pharmacy pack", () => {
+  test("pharmacist sees stock + dispensing screens but no Settings", async ({ page }) => {
+    await login(page, "pharmacist@pharmacy.demo");
+    const nav = page.getByRole("navigation", { name: "Main" });
+    for (const name of ["Point of Sale", "Inventory", "Expiry alerts", "Purchases"]) await expect(nav.getByRole("link", { name })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Settings" })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: "Calendar" })).toHaveCount(0);
+    await page.goto("/settings");
+    await expect(page.getByText("Access denied")).toBeVisible();
+  });
+
+  test("dashboard warns about expired batches still in stock", async ({ page }) => {
+    await login(page, "owner@pharmacy.demo");
+    await expect(page.getByText(/expired batch.* still in stock/)).toBeVisible();
+  });
+
+  test("POS shows strength + strips, blocks expired stock, and sells a strip", async ({ page }) => {
+    await login(page, "owner@pharmacy.demo");
+    await page.goto("/pos");
+    await expect(page.getByText("Paracetamol · 500 mg")).toBeVisible();
+    await expect(page.getByText(/expired — not sellable/).first()).toBeVisible();
+    await page.getByRole("button", { name: "Add one strip of Panadol 500mg" }).click();
+    await expect(page.getByText("Panadol 500mg (strip of 10)")).toBeVisible();
+    await page.getByRole("button", { name: "Pay full amount" }).click();
+    await page.getByRole("button", { name: /^Charge/ }).click();
+    await expect(page.getByText("Sale complete")).toBeVisible({ timeout: 30_000 });
+    await page.getByRole("link", { name: /View \/ print receipt/ }).click();
+    await expect(page.getByText("Panadol 500mg (strip of 10)")).toBeVisible();
+  });
+
+  test("expiry page lists the expired batch and the owner can write it off", async ({ page }) => {
+    await login(page, "owner@pharmacy.demo");
+    await page.goto("/expiry");
+    const row = page.getByRole("row", { name: /Augmentin 625mg/ }).filter({ hasText: "AUG-2305" });
+    await expect(row).toContainText(/Expired \d+ days? ago/);
+    page.once("dialog", (d) => d.accept());
+    await row.getByRole("button", { name: "Write off" }).click();
+    await expect(page.getByText(/unit\(s\) written off/)).toBeVisible();
+    await expect(page.getByRole("row", { name: /AUG-2305/ })).toHaveCount(0);
+  });
+
+  test("inventory shows generic names, nearest expiry and per-batch details", async ({ page }) => {
+    await login(page, "owner@pharmacy.demo");
+    await page.goto("/inventory");
+    await expect(page.getByText("Nearest expiry")).toBeVisible();
+    await expect(page.getByText(/Paracetamol/).first()).toBeVisible();
+    await page.getByRole("row", { name: /Panadol 500mg/ }).getByRole("link", { name: "Batches" }).click();
+    await expect(page.getByRole("cell", { name: "PAN-2409" })).toBeVisible();
+  });
+
+  test("a salon never sees pharmacy screens", async ({ page }) => {
+    await login(page, "owner@royal.demo");
+    await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Expiry alerts" })).toHaveCount(0);
+    await page.goto("/expiry");
+    await expect(page).toHaveURL(/dashboard/);
+  });
+});

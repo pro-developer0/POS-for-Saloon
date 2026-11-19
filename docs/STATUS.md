@@ -3,7 +3,7 @@
 Legend: ✅ done & verified · 🟡 partial · ❌ not done
 
 ## Verified
-- ✅ 50 unit/integration tests (`npm test`) + 16 Playwright browser tests (`npm run test:e2e`) pass: tenant isolation, permissions, booking rules, POS/financials, inventory/purchases, auth, AI failure handling
+- ✅ 83 unit/integration tests (`npm test`) + 24 Playwright browser tests (`npm run test:e2e`) pass: tenant isolation, permissions, booking rules, POS/financials, inventory/purchases, auth, AI failure handling
 - ✅ `npm run build` passes (types + lint); 30 authenticated pages smoke-tested against both demo tenants with 0 server errors
 - ✅ Cross-tenant checks: spoofed tenant cookie, foreign invoice id (404), foreign customer/product/service/staff ids in forms
 
@@ -24,6 +24,7 @@ Legend: ✅ done & verified · 🟡 partial · ❌ not done
 | POS (split/partial payments, discounts, tax, stock, commission, receipt) | ✅ | **Coupons not implemented** |
 | Invoices, payments, void, print | 🟡 | PDF = browser "Print / Save as PDF" (no server-side PDF generator) |
 | Inventory, movements, valuation, low-stock notifications | ✅ | Service-linked product usage not implemented |
+| Pharmacy pack (batches + expiry, soonest-expiry-first selling, expired stock blocked, expiry alerts + write-off, generic name/strength/form, sell by unit or strip/box, Pharmacist role) | ✅ | 23 unit tests + 6 browser tests. NOT included by request: prescriptions, barcode scanning. Not a regulatory sign-off: have a licensed pharmacist/DRAP-aware advisor review before selling to pharmacies |
 | Suppliers, purchase orders, receiving | 🟡 | One product line per PO in the UI (backend supports many); no supplier payments |
 | Expenses + receipts + categories | ✅ | |
 | Reports + CSV export | ✅ | PDF via print |

@@ -1,4 +1,5 @@
 import { hasModule, labelsOf } from "@/lib/verticals";
+import { batchesOn, sellableMap } from "@/server/services/batches";
 import { and, asc, eq } from "drizzle-orm";
 import { requireCtx } from "@/server/session";
 import { Pos } from "@/components/pos";
@@ -15,6 +16,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
     ctx.db.select({ id: customers.id, name: customers.name, phone: customers.phone }).from(customers).where(and(eq(customers.tenantId, t), eq(customers.archived, false))).orderBy(asc(customers.name)),
     ctx.db.select({ id: staff.id, name: staff.name }).from(staff).where(and(eq(staff.tenantId, t), eq(staff.active, true))).orderBy(asc(staff.name)),
   ]);
+  const sell = batchesOn(ctx) ? await sellableMap(ctx) : new Map<string, { sellable: number; expired: number; nearest: string | null }>();
   let pre;
   if (sp.appointment && /^[0-9a-f-]{36}$/.test(sp.appointment)) {
     const [a] = await ctx.db.select().from(appointments).where(and(eq(appointments.id, sp.appointment), eq(appointments.tenantId, t)));
@@ -23,7 +25,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
   return (
     <div className="page-in">
       <PageHeader title="Point of Sale" desc="Sell services and products, take split payments and print receipts." />
-      <Pos services={svc.map((s) => ({ id: s.id, name: s.name, price: s.price, taxable: s.taxable }))} products={prod.map((p) => ({ id: p.id, name: p.name, price: p.sellPrice, taxable: p.taxable, stock: p.trackStock ? p.quantity : undefined }))}
+      <Pos services={svc.map((s) => ({ id: s.id, name: s.name, price: s.price, taxable: s.taxable }))} products={prod.map((p) => { const b = sell.get(p.id); return { id: p.id, name: p.name, price: p.sellPrice, taxable: p.taxable, stock: p.trackStock ? (b ? b.sellable : p.quantity) : undefined, generic: p.genericName, strength: p.strength, unitLabel: p.unitLabel, packLabel: p.packLabel, unitsPerPack: p.unitsPerPack, packPrice: p.packPrice, nearest: b?.nearest ?? null, expired: b?.expired ?? 0 }; })}
         customers={cust} staff={st} methods={ctx.tenant.paymentMethods} taxRate={ctx.tenant.taxRate} currency={ctx.tenant.currency} pre={pre} showServices={hasModule(ctx.tenant, "services")} showStaff={hasModule(ctx.tenant, "staff")} noteLabel={labelsOf(ctx.tenant).posNote} productLabel={labelsOf(ctx.tenant).products} />
     </div>
   );

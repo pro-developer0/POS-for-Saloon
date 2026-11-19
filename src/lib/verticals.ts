@@ -2,7 +2,7 @@
  * Business types ("verticals"). One codebase serves all of them: a type picks which modules are switched on
  * and which words the interface uses. A business owner can still toggle modules in Settings.
  */
-export const MODULES = ["appointments", "services", "staff", "inventory", "purchases", "expenses", "batches", "prescriptions"] as const;
+export const MODULES = ["appointments", "services", "staff", "inventory", "purchases", "expenses", "batches"] as const;
 export type Module = (typeof MODULES)[number];
 
 export const MODULE_INFO: Record<Module, { label: string; desc: string }> = {
@@ -12,8 +12,7 @@ export const MODULE_INFO: Record<Module, { label: string; desc: string }> = {
   inventory: { label: "Inventory & products", desc: "Products, stock levels, movements and low-stock alerts." },
   purchases: { label: "Suppliers & purchases", desc: "Suppliers and purchase orders that receive stock." },
   expenses: { label: "Expenses", desc: "Track business costs." },
-  batches: { label: "Batches & expiry", desc: "Batch numbers, expiry dates, first-expiry-first-out selling and expiry alerts." },
-  prescriptions: { label: "Prescription handling", desc: "Prescription-only items with doctor/patient details recorded on the sale." },
+  batches: { label: "Batches & expiry", desc: "Batch numbers and expiry dates, soonest-expiry-first selling, expired stock blocked, expiry alerts." },
 };
 
 export type Labels = {
@@ -34,8 +33,8 @@ type Vertical = {
 const BEAUTY: Module[] = ["appointments", "services", "staff", "inventory", "purchases", "expenses"];
 export const VERTICALS: Record<string, Vertical> = {
   pharmacy: {
-    label: "Pharmacy", group: "health", hint: "Batches, expiry dates, prescription items, barcode selling.",
-    modules: ["inventory", "purchases", "expenses", "batches", "prescriptions"], taxName: "Sales tax",
+    label: "Pharmacy", group: "health", hint: "Batches, expiry dates, generic names, strips and boxes.",
+    modules: ["inventory", "purchases", "expenses", "batches"], taxName: "Sales tax",
     labels: { staff: "Pharmacists & staff", staffOne: "pharmacist", product: "Medicine / item", products: "Medicines & items", customers: "Patients / customers", customer: "Patient / customer", posNote: "Notes (optional)" },
     productCategories: ["Tablets", "Capsules", "Syrups", "Injections", "Ointments & creams", "Drops", "Surgical & devices", "Baby care", "Personal care", "Supplements"],
   },

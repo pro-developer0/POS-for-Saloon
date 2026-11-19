@@ -1,4 +1,5 @@
 import { modulesOf } from "@/lib/verticals";
+import { expiryReport, expirySummary } from "@/server/services/batches";
 import Link from "next/link";
 import { requireCtx } from "@/server/session";
 import * as rep from "@/server/services/reports";
@@ -23,6 +24,7 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
     canReports ? rep.popularServices(ctx, r, 5, mods.has("services") ? "service" : "any") : [], canReports ? rep.staffPerformance(ctx, r) : [],
   ]);
   const by = appt.byStatus;
+  const exp = mods.has("batches") && ctx.perms.has("inventory.view") ? expirySummary(await expiryReport(ctx, 30)) : null;
   const profit = Number(sum.netProfit);
   return (
     <div className="page-in">
@@ -52,8 +54,10 @@ export default async function Dashboard({ searchParams }: { searchParams: Promis
           <ul className="divide-y divide-line text-sm">
             {Number(sum.outstanding) > 0 && <li className="px-5 py-3"><Link href="/invoices?status=unpaid" className="hover:underline">💳 {m(sum.outstanding)} in unpaid balances.</Link></li>}
             {low.length > 0 && <li className="px-5 py-3"><Link href="/inventory?low=1" className="hover:underline">📦 {low.length} product{low.length > 1 ? "s" : ""} at or below minimum stock: {low.slice(0, 3).map((p) => p.name).join(", ")}</Link></li>}
+            {exp && exp.expired > 0 && <li className="px-5 py-3"><Link href="/expiry" className="font-medium text-bad hover:underline">🚫 {exp.expired} expired batch{exp.expired > 1 ? "es" : ""} still in stock — remove from shelves and write off.</Link></li>}
+            {exp && exp.d30 > 0 && <li className="px-5 py-3"><Link href="/expiry" className="hover:underline">⏳ {exp.d30} batch{exp.d30 > 1 ? "es" : ""} expire within 30 days.</Link></li>}
             {dormant.length > 0 && <li className="px-5 py-3"><Link href="/customers" className="hover:underline">👥 {dormant.length} customer{dormant.length > 1 ? "s" : ""} {"haven't"} completed a visit in 60+ days — a retention message may help.</Link></li>}
-            {Number(sum.outstanding) === 0 && !low.length && !dormant.length && <li className="px-5 py-6 text-muted">No alerts. Everything looks healthy.</li>}
+            {Number(sum.outstanding) === 0 && !low.length && !dormant.length && !(exp && (exp.expired || exp.d30)) && <li className="px-5 py-6 text-muted">No alerts. Everything looks healthy.</li>}
           </ul>
         </Card>
         {canReports && (

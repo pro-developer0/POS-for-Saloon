@@ -12,7 +12,8 @@
     "db:generate": "drizzle-kit generate",
     "db:seed": "tsx scripts/seed.ts",
     "demo:reset": "tsx scripts/seed.ts --reset",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "demo:add-pharmacy": "tsx scripts/add-pharmacy-demo.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.17",
