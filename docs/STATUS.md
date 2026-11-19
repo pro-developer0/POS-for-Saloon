@@ -12,7 +12,7 @@ Legend: ✅ done & verified · 🟡 partial · ❌ not done
 |---|---|---|
 | Auth (register, login, logout, lockout, 7-day session) | ✅ | |
 | Password reset + email verification | ✅ | One-time hashed tokens (1h / 24h), no account enumeration, resets sign out old sessions. Emails go to .data/outbox.log until SMTP_URL is set; links need APP_URL in production |
-| Multi-tenancy, membership, workspace switcher | ✅ | |
+| Multi-tenancy, business types, switchable modules | ✅ | Business type chosen once at sign-up and locked; no business switcher for clients; no pricing/billing/trial logic by design (handled manually) |
 | Onboarding wizard, branding, locale, tax, hours | ✅ | Logo/favicon upload to local disk |
 | RBAC (owner, manager, receptionist, cashier, staff) | ✅ | Per-member override column exists; no UI to edit it yet |
 | Dashboard, date filters, charts, alerts | ✅ | Real SQL aggregates |

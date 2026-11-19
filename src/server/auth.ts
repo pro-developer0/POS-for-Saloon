@@ -32,8 +32,7 @@ export async function createTenant(db: DB, input: { name: string; type?: string;
   const [t] = await db.insert(tenants).values({
     name: input.name, slug, businessType: input.type ?? "hair_salon",
     currency: input.currency ?? "USD", timezone: input.timezone ?? "UTC", country: input.country ?? "US",
-    hours: defaultWeek(), status: "trial", isDemo: !!input.isDemo,
-    trialEndsAt: new Date(Date.now() + 14 * 864e5),
+    hours: defaultWeek(), status: "active", isDemo: !!input.isDemo,
   }).returning();
   return t;
 }

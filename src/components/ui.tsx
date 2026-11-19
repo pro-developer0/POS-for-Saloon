@@ -50,7 +50,7 @@ export function Empty({ title, desc, action }: { title: string; desc?: string; a
 
 const TONES: Record<string, string> = {
   paid: "bg-ok/15 text-ok", completed: "bg-ok/15 text-ok", confirmed: "bg-ok/15 text-ok", active: "bg-ok/15 text-ok",
-  partial: "bg-warn/15 text-warn", partially_paid: "bg-warn/15 text-warn", pending: "bg-warn/15 text-warn", trial: "bg-warn/15 text-warn", checked_in: "bg-blue-500/15 text-blue-500", in_progress: "bg-blue-500/15 text-blue-500",
+  partial: "bg-warn/15 text-warn", partially_paid: "bg-warn/15 text-warn", pending: "bg-warn/15 text-warn", checked_in: "bg-blue-500/15 text-blue-500", in_progress: "bg-blue-500/15 text-blue-500",
   unpaid: "bg-bad/15 text-bad", overdue: "bg-bad/15 text-bad", cancelled: "bg-bad/15 text-bad", no_show: "bg-bad/15 text-bad", suspended: "bg-bad/15 text-bad",
 };
 export function StatusBadge({ status }: { status: string }) {

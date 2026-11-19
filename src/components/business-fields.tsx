@@ -3,11 +3,11 @@ import { BUSINESS_TYPE_OPTIONS, COUNTRIES, CURRENCIES, TIMEZONES } from "@/lib/c
 import { Field } from "./ui";
 import { WeekEditor } from "./week-editor";
 
-export function IdentityFields({ t }: { t: Tenant }) {
+export function IdentityFields({ t, lockType = false }: { t: Tenant; lockType?: boolean }) {
   return (
     <div className="space-y-4">
       <Field label="Business name"><input name="name" className="input" defaultValue={t.name} required /></Field>
-      <Field label="Business type"><select name="businessType" className="input" defaultValue={t.businessType}>{BUSINESS_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+      <Field label="Business type" hint={lockType ? "Chosen at sign-up and cannot be changed. Use Settings → Modules to switch features on or off." : undefined}><select name="businessType" className="input" defaultValue={t.businessType} disabled={lockType}>{BUSINESS_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Logo (PNG/JPG/WebP, max 2 MB)"><input type="file" name="logo" accept="image/png,image/jpeg,image/webp" className="input pt-1.5" /></Field>
         <Field label="Favicon"><input type="file" name="favicon" accept="image/png,image/jpeg,image/webp" className="input pt-1.5" /></Field>

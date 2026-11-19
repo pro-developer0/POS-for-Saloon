@@ -1,6 +1,6 @@
-# SalonPro
+# OmniPOS (placeholder name)
 
-Multi-tenant salon / spa / barbershop management SaaS. One codebase, many independent businesses (tenants), each with its own
+Multi-tenant POS & business-management SaaS for pharmacies, shops, restaurants, clinics, salons and more. One codebase, many independent businesses (tenants), each with its own
 branding, users, customers, services, staff, appointments, sales, inventory, expenses, reports and optional AI.
 
 **Stack:** Next.js 15 (App Router, TypeScript) · Tailwind v4 · Drizzle ORM · PostgreSQL (embedded PGlite for local dev) · Zod ·
@@ -21,7 +21,7 @@ Demo logins (password for all: `Demo-Pass-123`) — **demo data only, never ship
 |---|---|---|
 | Royal Hair Studio owner | owner@royal.demo | PKR, Asia/Karachi, rose branding |
 | Glow Beauty Lounge owner | owner@glow.demo | USD, America/New_York, 8.25% tax, teal branding |
-| Multi-workspace user | multi@demo.test | *manager* at Royal, *cashier* at Glow (try the workspace switcher) |
+| Manager (Royal) / Cashier (Glow) | multi@demo.test | one login with a different role in each business; there is no business switcher in the UI, it opens the first business |
 | Platform admin | admin@salonpro.local | `/admin` |
 
 `npm run demo:reset` wipes and reseeds the **embedded dev database only** (it refuses to run against `DATABASE_URL`).

@@ -6,12 +6,11 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useTheme } from "next-themes";
 import {
   LayoutDashboard, CalendarDays, CalendarRange, ShoppingCart, Users, Scissors, UserCog, Boxes, Truck, Receipt, FileText, CreditCard,
-  BarChart3, Bell, Sparkles, Settings, LifeBuoy, Menu, PanelLeftClose, PanelLeftOpen, Sun, Moon, Monitor, Search, ChevronsUpDown, LogOut, Check, ShieldCheck, Wallet,
+  BarChart3, Bell, Sparkles, Settings, LifeBuoy, Menu, PanelLeftClose, PanelLeftOpen, Sun, Moon, Monitor, Search, LogOut, ShieldCheck, Wallet,
 } from "lucide-react";
 
 const ICONS = { LayoutDashboard, CalendarDays, CalendarRange, ShoppingCart, Users, Scissors, UserCog, Boxes, Truck, Receipt, FileText, CreditCard, BarChart3, Bell, Sparkles, Settings, LifeBuoy, ShieldCheck, Wallet };
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };
-export type Workspace = { tenantId: string; name: string; role: string; brandColor: string };
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -27,16 +26,15 @@ function ThemeToggle() {
   );
 }
 
-export function AppShell({ nav, tenantName, logoUrl, workspaces, activeTenantId, userName, unread, switchAction, logoutAction, children }: {
-  nav: NavItem[]; tenantName: string; logoUrl: string | null; workspaces: Workspace[]; activeTenantId: string; userName: string; unread: number;
-  switchAction: (fd: FormData) => Promise<void>; logoutAction: () => Promise<void>; children: ReactNode;
+export function AppShell({ nav, tenantName, logoUrl, userName, unread, logoutAction, children }: {
+  nav: NavItem[]; tenantName: string; logoUrl: string | null; userName: string; unread: number;
+  logoutAction: () => Promise<void>; children: ReactNode;
 }) {
   const path = usePathname();
   const router = useRouter();
   const reduce = useReducedMotion();
   const [collapsed, setCollapsed] = useState(false);
   const [drawer, setDrawer] = useState(false);
-  const [wsOpen, setWsOpen] = useState(false);
   const [q, setQ] = useState("");
   useEffect(() => { try { setCollapsed(localStorage.getItem("sp_collapsed") === "1"); } catch { /* ignore */ } }, []);
   useEffect(() => setDrawer(false), [path]);
@@ -99,31 +97,6 @@ export function AppShell({ nav, tenantName, logoUrl, workspaces, activeTenantId,
             <input className="input pl-9" placeholder="Search customers…" aria-label="Search customers" value={q} onChange={(e) => setQ(e.target.value)} />
           </form>
           <div className="ml-auto flex min-w-0 items-center gap-0.5 sm:gap-1">
-            <div className="relative">
-              <button className="btn btn-sm max-w-[6.5rem] px-2 sm:max-w-[11rem] sm:px-3" aria-haspopup="listbox" aria-expanded={wsOpen} onClick={() => setWsOpen((o) => !o)}>
-                <span className="size-2.5 shrink-0 rounded-full" style={{ background: workspaces.find((w) => w.tenantId === activeTenantId)?.brandColor }} />
-                <span className="truncate">{tenantName}</span><ChevronsUpDown size={14} className="shrink-0 text-muted" />
-              </button>
-              <AnimatePresence>
-                {wsOpen && (
-                  <motion.ul role="listbox" className="card absolute right-0 z-40 mt-2 w-64 p-1.5" initial={{ opacity: 0, y: -6, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: reduce ? 0 : 0.14 }}>
-                    <li className="px-2.5 pb-1 pt-1.5 text-xs font-semibold uppercase tracking-wide text-muted">Workspaces</li>
-                    {workspaces.map((w) => (
-                      <li key={w.tenantId}>
-                        <form action={switchAction}>
-                          <input type="hidden" name="tenantId" value={w.tenantId} />
-                          <button className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-surface2" role="option" aria-selected={w.tenantId === activeTenantId}>
-                            <span className="size-2.5 rounded-full" style={{ background: w.brandColor }} />
-                            <span className="min-w-0 flex-1"><span className="block truncate font-medium">{w.name}</span><span className="block text-xs capitalize text-muted">{w.role}</span></span>
-                            {w.tenantId === activeTenantId && <Check size={15} className="text-brand" />}
-                          </button>
-                        </form>
-                      </li>
-                    ))}
-                  </motion.ul>
-                )}
-              </AnimatePresence>
-            </div>
             <Link href="/notifications" className="btn btn-ghost btn-sm relative" aria-label={`Notifications${unread ? `, ${unread} unread` : ""}`}>
               <Bell size={17} />{unread > 0 && <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-bad px-1 text-[10px] font-bold text-white">{unread > 9 ? "9+" : unread}</span>}
             </Link>

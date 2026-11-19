@@ -38,7 +38,7 @@ export function LoginForm() {
 export function RegisterForm() {
   const [state, act, pending] = useActionState<Result | null, FormData>(registerAction, null);
   return (
-    <Shell title="Create your business" sub="Start a 14-day free trial. No card needed." foot={<>Already registered? <Link className="font-semibold text-brand" href="/login">Sign in</Link></>}>
+    <Shell title="Create your business" sub="Set up your business in a few minutes." foot={<>Already registered? <Link className="font-semibold text-brand" href="/login">Sign in</Link></>}>
       <form action={act} className="space-y-4">
         <div><label className="label" htmlFor="name">Your name</label><input id="name" name="name" required className="input" autoComplete="name" /></div>
         <div><label className="label" htmlFor="email">Email</label><input id="email" name="email" type="email" required className="input" autoComplete="email" /></div>

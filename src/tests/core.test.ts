@@ -244,7 +244,7 @@ describe("auth", () => {
   it("registers a business owner, enforces unique email, hashes password and locks after repeated failures", async () => {
     const { user, tenant } = await registerOwner(db, { name: "New Owner", email: "new@owner.test", password: "Str0ng-Password1", businessName: "Fresh Cuts" });
     expect(user.passwordHash).not.toContain("Str0ng");
-    expect(tenant.status).toBe("trial");
+    expect(tenant.status).toBe("active");
     await expect(registerOwner(db, { name: "Dup", email: "NEW@owner.test", password: "Str0ng-Password1", businessName: "Other" })).rejects.toThrow(/already exists/);
     await expect(registerOwner(db, { name: "W", email: "weak@owner.test", password: "short", businessName: "W" })).rejects.toThrow();
     expect((await verifyLogin(db, "new@owner.test", "Str0ng-Password1")).id).toBe(user.id);

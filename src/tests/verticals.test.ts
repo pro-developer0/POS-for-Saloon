@@ -90,3 +90,12 @@ describe("non-stocked items (restaurant menu, services-like goods)", () => {
     expect((await db.select().from(products).where(eq(products.id, menuId)))[0].quantity).toBe(0);
   });
 });
+
+describe("business type is chosen once", () => {
+  it("new businesses start active (no trial/billing state) and keep their chosen type", async () => {
+    const c = await make("pharmacy", "locktest");
+    expect(c.tenant.status).toBe("active");
+    expect(c.tenant.businessType).toBe("pharmacy");
+    expect(c.tenant.trialEndsAt).toBeNull();
+  });
+});

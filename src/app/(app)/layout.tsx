@@ -2,10 +2,9 @@ import { labelsOf, modulesOf, type Module } from "@/lib/verticals";
 import type { Metadata } from "next";
 import { and, eq, sql } from "drizzle-orm";
 import { requireCtx, getUser } from "@/server/session";
-import { listMemberships } from "@/server/auth";
 import { notifications } from "@/db/schema";
 import { AppShell, type NavItem } from "@/components/shell";
-import { logoutAction, switchTenantAction } from "@/app/actions";
+import { logoutAction } from "@/app/actions";
 import { readableOn } from "@/lib/color";
 import { ActionButton } from "@/components/forms";
 import { resendVerificationAction } from "@/app/actions";
@@ -38,7 +37,6 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireCtx();
   const user = (await getUser())!;
-  const workspaces = await listMemberships(ctx.db, user.id);
   const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(notifications).where(and(eq(notifications.tenantId, ctx.tenantId), eq(notifications.read, false)));
   const mods = modulesOf(ctx.tenant), L = labelsOf(ctx.tenant);
   const nav: NavItem[] = NAV.filter((i) => (!i.perm || ctx.perms.has(i.perm)) && (!i.mod || mods.has(i.mod)))
@@ -47,9 +45,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const t = ctx.tenant;
   return (
     <div style={{ ["--brand" as string]: t.brandColor, ["--brand-fg" as string]: readableOn(t.brandColor), ["--accent" as string]: t.accentColor }}>
-      <AppShell nav={nav} tenantName={t.name} logoUrl={t.logoUrl} userName={user.name} unread={n} activeTenantId={ctx.tenantId}
-        workspaces={workspaces.map((w) => ({ tenantId: w.tenantId, name: w.name, role: w.role, brandColor: w.brandColor }))}
-        switchAction={switchTenantAction} logoutAction={logoutAction}>
+      <AppShell nav={nav} tenantName={t.name} logoUrl={t.logoUrl} userName={user.name} unread={n} logoutAction={logoutAction}>
         {!user.emailVerifiedAt && (
           <div role="status" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-2.5 text-sm">
             <span>Please confirm your email address ({user.email}).</span>

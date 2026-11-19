@@ -21,8 +21,8 @@ export default async function Page() {
   const canMembers = ctx.perms.has("members.manage");
   return (
     <div className="page-in">
-      <PageHeader title="Settings" desc={`Workspace plan: ${t.plan} · status: ${t.status}${t.trialEndsAt ? ` · trial ends ${t.trialEndsAt.toISOString().slice(0, 10)}` : ""}`} />
-      <SettingsForm identity={<IdentityFields t={t} />} locale={<LocaleFields t={t} />} hours={<HoursFields t={t} />} modules={<ModuleChecks t={t} />} aiEnabled={t.aiEnabled} aiPlatformOn={ai.enabled} />
+      <PageHeader title="Settings" desc="Your business details, hours, features and team." />
+      <SettingsForm identity={<IdentityFields t={t} lockType />} locale={<LocaleFields t={t} />} hours={<HoursFields t={t} />} modules={<ModuleChecks t={t} />} aiEnabled={t.aiEnabled} aiPlatformOn={ai.enabled} />
       <Card title="Team & access" className="mt-6" action={canMembers ? <ModalForm trigger="Add member" triggerClass="btn btn-sm btn-primary" title="Add team member" action={addMemberAction}>
         <Field label="Email"><input name="email" type="email" required className="input" /></Field>
         <Field label="Name (for new users)"><input name="name" className="input" /></Field>

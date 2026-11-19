@@ -55,17 +55,26 @@ test("new business: register, onboard, land on empty dashboard", async ({ page }
   await expect(page.getByText("Haircut").first()).toBeVisible();
 });
 
-test("two businesses stay separate and the workspace switcher works", async ({ page }) => {
-  await login(page, "multi@demo.test");
-  await expect(page).toHaveURL(/dashboard/);
-  const first = (await page.getByRole("button", { name: /Royal Hair Studio|Glow Beauty Lounge/ }).first().innerText()).trim();
-  await page.getByRole("button", { name: /Royal Hair Studio|Glow Beauty Lounge/ }).first().click();
-  const other = first.includes("Royal") ? "Glow Beauty Lounge" : "Royal Hair Studio";
-  await page.getByRole("option", { name: new RegExp(other) }).click();
-  await expect(page.getByRole("button", { name: new RegExp(other) }).first()).toBeVisible({ timeout: 15_000 });
+test("each business sees only its own data, and there is no business switcher", async ({ page }) => {
+  await login(page, "owner@royal.demo");
+  await expect(page.getByRole("button", { name: /Royal Hair Studio|Glow Beauty Lounge/ })).toHaveCount(0); // switcher removed
   await page.goto("/customers");
-  const text = await page.locator("main").innerText();
-  expect(text).not.toContain(first.includes("Royal") ? "Fatima Noor" : "Sophia Turner");
+  let text = await page.locator("main").innerText();
+  expect(text).toContain("Fatima Noor");
+  expect(text).not.toContain("Sophia Turner");
+  await page.context().clearCookies();
+  await login(page, "owner@glow.demo");
+  await page.goto("/customers");
+  text = await page.locator("main").innerText();
+  expect(text).toContain("Sophia Turner");
+  expect(text).not.toContain("Fatima Noor");
+});
+
+test("business type is locked after sign-up (cannot be changed in Settings)", async ({ page }) => {
+  await login(page, "owner@royal.demo");
+  await page.goto("/settings");
+  await expect(page.getByLabel("Business type")).toBeDisabled();
+  await expect(page.getByText(/cannot be changed/)).toBeVisible();
 });
 
 test("a manager is blocked from Settings", async ({ page }) => {

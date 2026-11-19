@@ -7,7 +7,7 @@ import { ZodError } from "zod";
 import { db } from "@/db/client";
 import { tenants, memberships, users, staff, services, notifications } from "@/db/schema";
 import { registerOwner, verifyLogin, seedStarter } from "@/server/auth";
-import { AppError, audit, buildCtx, need } from "@/server/ctx";
+import { AppError, audit, need } from "@/server/ctx";
 import { createSession, destroySession, getUser, requireCtx, requirePlatformAdmin, setActiveTenant } from "@/server/session";
 import * as crm from "@/server/services/crm";
 import * as appts from "@/server/services/appointments";
@@ -19,7 +19,7 @@ import { zonedToUtc, hm } from "@/lib/time";
 import type { WeekHours } from "@/db/schema";
 import type { Result } from "@/components/forms";
 import { ROLES } from "@/lib/permissions";
-import { MODULES } from "@/lib/verticals";
+import { MODULES, VERTICALS } from "@/lib/verticals";
 import { saveUpload } from "@/server/uploads";
 import { requestPasswordReset, resetPassword, sendVerification, verifyEmail } from "@/server/tokens";
 import { appUrl } from "@/server/mail";
@@ -114,13 +114,6 @@ export async function resendVerificationAction(): Promise<Result> {
   });
 }
 export async function logoutAction() { await destroySession(); redirect("/login"); }
-export async function switchTenantAction(fd: FormData) {
-  const u = await getUser(); if (!u) redirect("/login");
-  const d = await db();
-  await buildCtx(d, u.id, s(fd, "tenantId")); // throws unless the user really holds an active membership
-  await setActiveTenant(s(fd, "tenantId"));
-  revalidatePath("/", "layout"); redirect("/dashboard");
-}
 
 // ================= ONBOARDING / SETTINGS =================
 export async function saveBusinessAction(fd: FormData, finish = false): Promise<Result> {
@@ -136,7 +129,7 @@ export async function saveBusinessAction(fd: FormData, finish = false): Promise<
     const methods = s(fd, "paymentMethods").split(",").map((x) => x.trim().toLowerCase().replace(/\s+/g, "_")).filter(Boolean);
     const d = await db();
     const patch: Partial<typeof tenants.$inferInsert> = {
-      name: s(fd, "name") || ctx.tenant.name, businessType: s(fd, "businessType") || ctx.tenant.businessType,
+      name: s(fd, "name") || ctx.tenant.name,
       brandColor: color("brandColor", ctx.tenant.brandColor), secondaryColor: color("secondaryColor", ctx.tenant.secondaryColor), accentColor: color("accentColor", ctx.tenant.accentColor),
       country: s(fd, "country") || ctx.tenant.country, currency: cur, timezone: tz, timeFormat: s(fd, "timeFormat") === "24h" ? "24h" : "12h", dateFormat: s(fd, "dateFormat") || ctx.tenant.dateFormat,
       address: s(fd, "address") || null, phone: s(fd, "phone") || null, email: s(fd, "email") || null, website: s(fd, "website") || null,
@@ -146,6 +139,7 @@ export async function saveBusinessAction(fd: FormData, finish = false): Promise<
       invoicePrefix: (s(fd, "invoicePrefix") || "INV").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || "INV", invoiceFooter: s(fd, "invoiceFooter") || null,
       lowStockDefault: Math.max(0, Number(s(fd, "lowStockDefault") || 5)),
     };
+    if (!ctx.tenant.onboarded && s(fd, "businessType") && s(fd, "businessType") in VERTICALS) patch.businessType = s(fd, "businessType"); // locked after onboarding
     if (methods.length) patch.paymentMethods = methods;
     if (fd.get("hours0_open") !== null) patch.hours = parseWeek(fd, "hours");
     if (fd.has("aiEnabledPresent")) patch.aiEnabled = b(fd, "aiEnabled");
@@ -341,7 +335,7 @@ export async function saveContentAction(kind: string, title: string, content: st
 export async function deleteContentAction(id: string): Promise<Result> { return run(async () => { await ai.deleteContent(await requireCtx("ai.use"), id); }); }
 
 // ================= PLATFORM ADMIN =================
-export async function adminSetTenantStatusAction(tenantId: string, status: "active" | "suspended" | "trial"): Promise<Result> {
+export async function adminSetTenantStatusAction(tenantId: string, status: "active" | "suspended"): Promise<Result> {
   return run(async () => {
     const u = await requirePlatformAdmin(); const d = await db();
     await d.update(tenants).set({ status }).where(eq(tenants.id, tenantId));
