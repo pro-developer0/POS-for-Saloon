@@ -1,10 +1,10 @@
 "use client";
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Minus, Plus, Trash2, Search } from "lucide-react";
-import { checkoutAction } from "@/app/actions";
+import { checkoutAction, previewCouponAction } from "@/app/actions";
 
 type Item = {
   id: string; name: string; price: string; taxable: boolean; stock?: number; category?: string | null;
@@ -17,7 +17,7 @@ type Pay = { method: string; amount: string };
 const c = (v: string | number) => Math.round(Number(v || 0) * 100);
 
 export function Pos({ services, products, customers, staff, methods, taxRate, currency, pre, showServices = true, showStaff = true, noteLabel = "Payment notes (optional)", productLabel = "Products" }: {
-  services: Item[]; products: Item[]; customers: { id: string; name: string; phone?: string | null }[]; staff: { id: string; name: string }[];
+  services: Item[]; products: Item[]; customers: { id: string; name: string; phone?: string | null; balance?: string; limit?: string | null }[]; staff: { id: string; name: string }[];
   methods: string[]; taxRate: string; currency: string; pre?: { appointmentId: string; customerId: string; staffId: string; serviceId: string; discount: string };
   showServices?: boolean; showStaff?: boolean; noteLabel?: string; productLabel?: string;
 }) {
@@ -35,6 +35,8 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
   const [pays, setPays] = useState<Pay[]>([{ method: methods[0] ?? "cash", amount: "" }]);
   const [credit, setCredit] = useState(false);
   const [notes, setNotes] = useState("");
+  const [couponInput, setCouponInput] = useState("");
+  const [coupon, setCoupon] = useState<{ code: string; cents: number } | null>(null);
   const [key, setKey] = useState(() => crypto.randomUUID());
   const [pending, start] = useTransition();
   const [done, setDone] = useState<{ id: string; number: string } | null>(null);
@@ -43,7 +45,8 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
   const t = useMemo(() => {
     const nets = cart.map((l) => l.unit * l.qty - l.discount);
     const sub = nets.reduce((a, b) => a + b, 0);
-    const od = Math.min(c(orderDisc), sub);
+    const manual = Math.min(c(orderDisc), sub);
+    const od = manual + Math.min(coupon?.cents ?? 0, sub - manual); // manual + coupon discount (the server re-checks the coupon)
     let left = od;
     const tax = cart.reduce((sum, l, i) => {
       const share = i === cart.length - 1 ? left : sub ? Math.min(left, Math.round((od * nets[i]) / sub)) : 0;
@@ -52,8 +55,28 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
     }, 0);
     const total = sub - od + tax;
     const paid = pays.reduce((a, p) => a + c(p.amount), 0);
-    return { sub, od, tax, total, paid, due: total - paid };
-  }, [cart, orderDisc, pays, taxRate]);
+    return { sub, od, manual, cp: od - manual, tax, total, paid, due: total - paid };
+  }, [cart, orderDisc, pays, taxRate, coupon]);
+
+  // keep an applied coupon honest when the cart changes
+  useEffect(() => {
+    if (!coupon) return;
+    let live = true;
+    previewCouponAction(coupon.code, t.sub).then((r) => {
+      if (!live) return;
+      if (!r.ok) { setCoupon(null); toast.error(r.error); } else setCoupon({ code: r.code, cents: c(r.discount) });
+    });
+    return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t.sub, coupon?.code]);
+  const selected = customers.find((x) => x.id === customerId);
+  useEffect(() => { if (!customerId) setCredit(false); }, [customerId]);
+  async function applyCoupon() {
+    if (!couponInput.trim()) return;
+    const r = await previewCouponAction(couponInput, t.sub);
+    if (!r.ok) { toast.error(r.error); return; }
+    setCoupon({ code: r.code, cents: c(r.discount) }); setCouponInput(""); toast.success(`Coupon ${r.code} applied (${r.label})`);
+  }
 
   const list = (tab === "service" ? services : products).filter((i) => `${i.name} ${i.generic ?? ""} ${i.strength ?? ""}`.toLowerCase().includes(q.toLowerCase()));
   const add = (kind: "service" | "product", i: Item, pack = false) => setCart((cs) => {
@@ -71,14 +94,14 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
     start(async () => {
       const r = await checkoutAction({
         customerId: customerId || null, staffId: staffId || null, appointmentId: pre?.appointmentId ?? null, idempotencyKey: key, creditSale: credit,
-        items: cart.map((l) => ({ kind: l.kind, id: l.id, quantity: l.qty, pack: !!l.pack, discount: l.discount / 100 })), discount: t.od / 100,
+        items: cart.map((l) => ({ kind: l.kind, id: l.id, quantity: l.qty, pack: !!l.pack, discount: l.discount / 100 })), discount: t.manual / 100, couponCode: coupon?.code ?? null,
         payments: pays.filter((p) => c(p.amount) > 0).map((p) => ({ method: p.method, amount: Number(p.amount) })), notes,
       });
       if (!r.ok) { toast.error(r.error ?? "Checkout failed"); return; }
       const d = r.data as { transactionId: string; invoiceNumber: string };
       toast.success(r.message ?? "Sale completed");
       setDone({ id: d.transactionId, number: d.invoiceNumber });
-      setCart([]); setPays([{ method: methods[0] ?? "cash", amount: "" }]); setOrderDisc(""); setCredit(false); setNotes(""); setKey(crypto.randomUUID()); router.refresh();
+      setCart([]); setPays([{ method: methods[0] ?? "cash", amount: "" }]); setOrderDisc(""); setCredit(false); setNotes(""); setCoupon(null); setCouponInput(""); setKey(crypto.randomUUID()); router.refresh();
     });
   }
 
@@ -86,7 +109,7 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
     <div className="card page-in mx-auto max-w-md p-8 text-center">
       <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-ok/15 text-2xl text-ok">✓</div>
       <h2 className="text-lg font-semibold">Sale complete</h2><p className="mt-1 text-sm text-muted">Receipt {done.number}</p>
-      <div className="mt-6 flex justify-center gap-2"><Link className="btn btn-primary" href={`/invoices/${done.id}?print=1`}>View / print receipt</Link><button className="btn" onClick={() => setDone(null)}>New sale</button></div>
+      <div className="mt-6 flex justify-center gap-2"><Link className="btn btn-primary" href={`/invoices/${done.id}?print=1`}>View receipt</Link><a className="btn" href={`/receipt/${done.id}?auto=1`} target="_blank" rel="noopener noreferrer">Print thermal receipt</a><button className="btn" onClick={() => setDone(null)}>New sale</button></div>
     </div>
   );
 
@@ -129,6 +152,7 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
           <select className="input" value={customerId} onChange={(e) => setCustomerId(e.target.value)} aria-label="Customer"><option value="">Walk-in customer</option>{customers.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
           {showStaff ? <select className="input" value={staffId} onChange={(e) => setStaffId(e.target.value)} aria-label="Staff"><option value="">Staff…</option>{staff.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select> : <span />}
         </div>
+        {selected && Number(selected.balance ?? 0) > 0 && <p className="mt-2 rounded-lg bg-warn/10 px-3 py-1.5 text-xs text-warn">{selected.name} already owes {fmt(c(selected.balance ?? 0))}{selected.limit ? ` (limit ${fmt(c(selected.limit))})` : ""}</p>}
         <ul className="my-3 flex-1 space-y-2">
           {cart.length === 0 && <li className="py-8 text-center text-sm text-muted">Cart is empty. Tap a service or product.</li>}
           {cart.map((l, i) => (
@@ -149,6 +173,11 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
         <div className="space-y-1.5 border-t border-line pt-3 text-sm">
           <Row k="Subtotal" v={fmt(t.sub)} />
           <div className="flex items-center justify-between"><span className="text-muted">Order discount</span><input aria-label="Order discount" className="input !h-8 w-24 text-right" type="number" min="0" step="0.01" value={orderDisc} onChange={(e) => setOrderDisc(e.target.value)} /></div>
+          {coupon ? (
+            <div className="flex items-center justify-between"><span className="text-muted">Coupon <b className="text-ink">{coupon.code}</b> <button className="text-xs font-semibold text-bad" onClick={() => setCoupon(null)} aria-label="Remove coupon">remove</button></span><span>−{fmt(t.cp)}</span></div>
+          ) : (
+            <div className="flex gap-2"><input className="input !h-8" placeholder="Coupon code" aria-label="Coupon code" value={couponInput} onChange={(e) => setCouponInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCoupon(); } }} /><button className="btn btn-sm" onClick={applyCoupon} disabled={!cart.length}>Apply</button></div>
+          )}
           <Row k={`Tax (${Number(taxRate)}%)`} v={fmt(t.tax)} />
           <div className="flex items-center justify-between pt-1 text-lg font-bold"><span>Total</span><span>{fmt(t.total)}</span></div>
         </div>
@@ -164,7 +193,7 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
             <button className="font-semibold text-brand" onClick={() => setPays([...pays, { method: methods[0] ?? "cash", amount: "" }])}>+ Split payment</button>
             <button className="font-semibold text-brand" onClick={() => setPays([{ ...pays[0], amount: (t.total / 100).toFixed(2) }])}>Pay full amount</button>
           </div>
-          <label className="flex items-center gap-2 text-xs"><input type="checkbox" checked={credit} onChange={(e) => setCredit(e.target.checked)} />Leave balance on invoice (partial / pay later)</label>
+          <label className={`flex items-center gap-2 text-xs ${customerId ? "" : "opacity-60"}`}><input type="checkbox" checked={credit} disabled={!customerId} onChange={(e) => setCredit(e.target.checked)} />Leave balance on the customer account (credit){!customerId && " — choose a customer first"}</label>
           <input className="input" placeholder={noteLabel} value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
           <div className={`flex justify-between text-sm font-semibold ${t.due > 0 ? "text-warn" : t.due < 0 ? "text-bad" : "text-ok"}`}><span>{t.due < 0 ? "Overpaid" : "Balance due"}</span><span>{fmt(Math.abs(t.due))}</span></div>
         </div>

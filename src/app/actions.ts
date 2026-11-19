@@ -15,6 +15,10 @@ import * as pos from "@/server/services/pos";
 import * as inv from "@/server/services/inventory";
 import * as rep from "@/server/services/reports";
 import * as bat from "@/server/services/batches";
+import * as ledger from "@/server/services/ledger";
+import * as coupons from "@/server/services/coupons";
+import * as returns from "@/server/services/returns";
+import * as dayclose from "@/server/services/dayclose";
 import * as ai from "@/server/ai/service";
 import { zonedToUtc, hm } from "@/lib/time";
 import type { WeekHours } from "@/db/schema";
@@ -183,7 +187,7 @@ export async function finishOnboardingAction(): Promise<Result> {
 }
 
 // ================= CUSTOMERS =================
-const custBody = (fd: FormData) => ({ name: s(fd, "name"), phone: s(fd, "phone"), email: s(fd, "email"), birthday: s(fd, "birthday"), address: s(fd, "address"), notes: s(fd, "notes"), preferences: s(fd, "preferences"), tags: s(fd, "tags").split(",").map((t) => t.trim()).filter(Boolean), marketingConsent: b(fd, "marketingConsent") });
+const custBody = (fd: FormData) => ({ name: s(fd, "name"), phone: s(fd, "phone"), email: s(fd, "email"), birthday: s(fd, "birthday"), address: s(fd, "address"), notes: s(fd, "notes"), preferences: s(fd, "preferences"), tags: s(fd, "tags").split(",").map((t) => t.trim()).filter(Boolean), marketingConsent: b(fd, "marketingConsent"), creditLimit: s(fd, "creditLimit") });
 export async function saveCustomerAction(fd: FormData): Promise<Result> {
   return run(async () => { const ctx = await requireCtx("customers.manage"); const id = s(fd, "id"); if (id) await crm.updateCustomer(ctx, id, custBody(fd)); else await crm.createCustomer(ctx, custBody(fd)); revalidatePath("/customers"); });
 }
@@ -364,3 +368,28 @@ export async function adminTestAiAction(): Promise<Result> {
   });
 }
 void notifications;
+
+// ================= RETURNS / CREDIT / COUPONS / DAY CLOSE =================
+export async function createReturnAction(fd: FormData): Promise<Result> {
+  return run(async () => {
+    const ctx = await requireCtx("sales.refund");
+    const lines = [...fd.keys()].filter((k) => k.startsWith("qty_")).map((k) => ({ itemId: k.slice(4), quantity: Number(fd.get(k)), restock: fd.get("restock_" + k.slice(4)) === "on" })).filter((l) => l.quantity > 0);
+    const r = await returns.createReturn(ctx, { saleId: s(fd, "saleId"), idempotencyKey: s(fd, "idempotencyKey"), reason: s(fd, "reason"), refundMethod: s(fd, "refundMethod") || null, lines });
+    revalidatePath("/invoices");
+    return { message: r.duplicate ? "Return was already recorded" : `Credit note ${r.number}: refund ${r.refund}${Number(r.debtReduced) > 0 ? ` (${r.debtReduced} taken off the customer's balance)` : ""}`, data: r };
+  });
+}
+export async function receiveCustomerPaymentAction(fd: FormData): Promise<Result> {
+  return run(async () => { const r = await ledger.receiveCustomerPayment(await requireCtx("invoices.manage"), s(fd, "customerId"), Number(s(fd, "amount")), s(fd, "method"), s(fd, "note")); revalidatePath("/customers"); return { message: `Payment of ${r.amount} received` }; });
+}
+export async function saveCouponAction(fd: FormData): Promise<Result> {
+  return run(async () => { await coupons.saveCoupon(await requireCtx("coupons.manage"), { code: s(fd, "code"), description: s(fd, "description"), type: s(fd, "type"), value: s(fd, "value"), minSubtotal: s(fd, "minSubtotal") || 0, maxUses: s(fd, "maxUses"), expiresOn: s(fd, "expiresOn"), active: fd.has("activePresent") ? b(fd, "active") : true }, s(fd, "id") || undefined); revalidatePath("/coupons"); });
+}
+export async function setCouponActiveAction(id: string, active: boolean): Promise<Result> { return run(async () => { await coupons.setCouponActive(await requireCtx("coupons.manage"), id, active); }); }
+export async function previewCouponAction(code: string, subtotalCents: number) {
+  try { const ctx = await requireCtx("pos.use"); return { ok: true as const, ...(await coupons.previewCoupon(ctx, code, subtotalCents)) }; }
+  catch (e) { return { ok: false as const, error: fail(e).error ?? "Invalid coupon" }; }
+}
+export async function closeShiftAction(fd: FormData): Promise<Result> {
+  return run(async () => { const row = await dayclose.closeShift(await requireCtx("pos.use"), { openingFloat: s(fd, "openingFloat") || 0, countedCash: s(fd, "countedCash"), note: s(fd, "note") }); revalidatePath("/day-close"); return { message: `Shift closed. Difference: ${row.difference}` }; });
+}

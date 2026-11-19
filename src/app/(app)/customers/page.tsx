@@ -27,13 +27,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
       <Card>
         {rows.length === 0 ? <Empty title="No customers found" desc="Add your first customer or adjust the filters." /> : (
           <div className="overflow-x-auto"><table className="tbl">
-            <thead><tr><th>Name</th><th>Contact</th><th>Last visit</th><th>Next appt</th><th>Points</th><th className="text-right">Spent</th><th /></tr></thead>
-            <tbody>{rows.map(({ c, lastVisit, nextAppt, spent }) => (
+            <thead><tr><th>Name</th><th>Contact</th><th>Last visit</th><th>Next appt</th><th>Points</th><th className="text-right">Spent</th><th className="text-right">Owes</th><th /></tr></thead>
+            <tbody>{rows.map(({ c, lastVisit, nextAppt, spent, balance }) => (
               <tr key={c.id}>
                 <td><Link href={`/customers/${c.id}`} className="font-medium hover:text-brand">{c.name}</Link><div className="mt-0.5 flex gap-1">{c.tags.map((t) => <span key={t} className="badge">{t}</span>)}</div></td>
                 <td className="text-muted">{c.phone ?? "—"}<span className="block text-xs">{c.email}</span></td>
                 <td>{lastVisit ? fmtDate(lastVisit, tz) : "—"}</td><td>{nextAppt ? fmtDate(nextAppt, tz) : "—"}</td>
-                <td>{c.loyaltyPoints}</td><td className="text-right">{money(spent, ctx.tenant.currency)}</td>
+                <td>{c.loyaltyPoints}</td><td className="text-right">{money(spent, ctx.tenant.currency)}</td><td className="text-right">{Number(balance) > 0 ? <Link href={`/customers/${c.id}`} className="font-semibold text-warn hover:underline">{money(balance, ctx.tenant.currency)}</Link> : <span className="text-muted">—</span>}</td>
                 <td className="text-right"><div className="flex justify-end gap-1.5">
                   {can && <ModalForm trigger="Edit" triggerClass="btn btn-sm" title={`Edit ${c.name}`} action={saveCustomerAction} wide><CustomerFields c={c} /></ModalForm>}
                   {can && <ActionButton action={archiveCustomerAction} args={[c.id, !c.archived]} confirm={c.archived ? undefined : `Archive ${c.name}? History is kept.`}>{c.archived ? "Restore" : "Archive"}</ActionButton>}

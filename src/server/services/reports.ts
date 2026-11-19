@@ -19,11 +19,11 @@ export async function salesSummary(ctx: Ctx, r: Range) {
   need(ctx, "dashboard.view");
   const tid = ctx.tenantId;
   const [s] = await ctx.db.execute<{ sales: string; tax: string; count: string; discounts: string }>(sql`
-    select coalesce(sum(total),0) sales, coalesce(sum(tax),0) tax, count(*) count, coalesce(sum(discount),0) discounts
+    select coalesce(sum(total),0) sales, coalesce(sum(tax),0) tax, count(*) filter (where kind = 'sale') count, coalesce(sum(discount),0) discounts
     from transactions where tenant_id = ${tid} and status <> 'cancelled' and created_at >= ${r.from} and created_at < ${r.to}`).then((x) => x.rows);
   const [c] = await ctx.db.execute<{ v: string }>(sql`select coalesce(sum(p.amount),0) v from payments p join transactions t on t.id = p.transaction_id
     where p.tenant_id = ${tid} and t.status <> 'cancelled' and p.created_at >= ${r.from} and p.created_at < ${r.to}`).then((x) => x.rows);
-  const [o] = await ctx.db.execute<{ v: string }>(sql`select coalesce(sum(total - paid),0) v from transactions where tenant_id = ${tid} and status in ('unpaid','partial')`).then((x) => x.rows);
+  const [o] = await ctx.db.execute<{ v: string }>(sql`select coalesce(sum(total - paid),0) v from transactions where tenant_id = ${tid} and status <> 'cancelled'`).then((x) => x.rows);
   const [e] = await ctx.db.execute<{ v: string }>(sql`select coalesce(sum(amount),0) v from expenses where tenant_id = ${tid} and spent_on >= ${r.fromDate} and spent_on < ${r.toDate}`).then((x) => x.rows);
   const sales = toCents(s.sales), tax = toCents(s.tax), n = Number(s.count), exp = toCents(e.v);
   return {
@@ -57,7 +57,7 @@ export async function customerStats(ctx: Ctx, r: Range) {
   need(ctx, "dashboard.view");
   const [x] = await ctx.db.execute<{ new_c: string; returning_c: string }>(sql`
     select (select count(*) from customers where tenant_id = ${ctx.tenantId} and created_at >= ${r.from} and created_at < ${r.to}) new_c,
-           (select count(distinct t.customer_id) from transactions t where t.tenant_id = ${ctx.tenantId} and t.status <> 'cancelled' and t.created_at >= ${r.from} and t.created_at < ${r.to} and t.customer_id is not null
+           (select count(distinct t.customer_id) from transactions t where t.tenant_id = ${ctx.tenantId} and t.status <> 'cancelled' and t.kind = 'sale' and t.created_at >= ${r.from} and t.created_at < ${r.to} and t.customer_id is not null
               and exists (select 1 from transactions t2 where t2.customer_id = t.customer_id and t2.tenant_id = ${ctx.tenantId} and t2.status <> 'cancelled' and t2.created_at < ${r.from})) returning_c`).then((q) => q.rows);
   return { newCustomers: Number(x.new_c), returning: Number(x.returning_c) };
 }

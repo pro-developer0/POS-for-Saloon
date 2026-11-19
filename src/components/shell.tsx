@@ -6,10 +6,10 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { useTheme } from "next-themes";
 import {
   LayoutDashboard, CalendarDays, CalendarRange, ShoppingCart, Users, Scissors, UserCog, Boxes, Truck, Receipt, FileText, CreditCard,
-  BarChart3, Bell, Sparkles, Settings, LifeBuoy, Menu, PanelLeftClose, PanelLeftOpen, Sun, Moon, Monitor, Search, LogOut, ShieldCheck, Wallet, Hourglass,
+  BarChart3, Bell, Sparkles, Settings, LifeBuoy, Menu, PanelLeftClose, PanelLeftOpen, Sun, Moon, Monitor, Search, LogOut, ShieldCheck, Wallet, Hourglass, Banknote, Ticket,
 } from "lucide-react";
 
-const ICONS = { LayoutDashboard, CalendarDays, CalendarRange, ShoppingCart, Users, Scissors, UserCog, Boxes, Truck, Receipt, FileText, CreditCard, BarChart3, Bell, Sparkles, Settings, LifeBuoy, ShieldCheck, Wallet, Hourglass };
+const ICONS = { LayoutDashboard, CalendarDays, CalendarRange, ShoppingCart, Users, Scissors, UserCog, Boxes, Truck, Receipt, FileText, CreditCard, BarChart3, Bell, Sparkles, Settings, LifeBuoy, ShieldCheck, Wallet, Hourglass, Banknote, Ticket };
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };
 
 function ThemeToggle() {

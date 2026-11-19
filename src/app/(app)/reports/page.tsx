@@ -5,6 +5,8 @@ import { RangeFilter } from "@/components/range-filter";
 import { BarsChart, RevenueChart } from "@/components/charts";
 import { PrintButton } from "@/components/print-button";
 import { listProducts } from "@/server/services/inventory";
+import { debtors } from "@/server/services/ledger";
+import Link from "next/link";
 import type { RangeKey } from "@/lib/time";
 
 export const metadata = { title: "Reports" };
@@ -49,10 +51,11 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
           <Card title="Product sales in range">{sold.length === 0 ? <Empty title="No product sales" /> : <div className="overflow-x-auto"><table className="tbl"><tbody>{sold.map((x) => <tr key={x.name}><td className="font-medium">{x.name}</td><td className="text-right">{x.qty} sold</td><td className="text-right">{m(x.revenue)}</td></tr>)}</tbody></table></div>}</Card></div>);
       })()}
       {tab === "finance" && await (async () => {
-        const [pay, exp, tax] = await Promise.all([rep.paymentsByMethod(ctx, r), rep.expenseByCategory(ctx, r), rep.taxReport(ctx, r)]);
+        const [pay, exp, tax, owed] = await Promise.all([rep.paymentsByMethod(ctx, r), rep.expenseByCategory(ctx, r), rep.taxReport(ctx, r), debtors(ctx, 15)]);
         return (<div className="grid gap-4 lg:grid-cols-3">
           <Card title="Payments by method" action={csv("payments")}><table className="tbl"><tbody>{pay.map((x) => <tr key={x.method}><td className="capitalize">{x.method.replace(/_/g, " ")}</td><td className="text-right text-muted">{x.n}×</td><td className="text-right font-semibold">{m(x.total)}</td></tr>)}{!pay.length && <tr><td className="text-muted">No payments</td></tr>}</tbody></table></Card>
           <Card title="Expenses by category" action={csv("expenses")}><table className="tbl"><tbody>{exp.map((x) => <tr key={x.category}><td>{x.category}</td><td className="text-right font-semibold">{m(x.total)}</td></tr>)}{!exp.length && <tr><td className="text-muted">No expenses</td></tr>}</tbody></table></Card>
+          <Card title="Customers who owe money" className="lg:col-span-3">{owed.length === 0 ? <p className="px-5 py-6 text-sm text-muted">Nobody owes anything.</p> : <div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Customer</th><th>Phone</th><th className="text-right">Credit limit</th><th className="text-right">Owes</th></tr></thead><tbody>{owed.map((x) => <tr key={x.id}><td><Link className="font-medium hover:text-brand" href={`/customers/${x.id}`}>{x.name}</Link></td><td>{x.phone}</td><td className="text-right">{x.limit ? m(x.limit) : "—"}</td><td className="text-right font-semibold text-warn">{m(x.balance)}</td></tr>)}</tbody></table></div>}</Card>
           <Card title={`Tax report (${ctx.tenant.taxName})`}><dl className="space-y-2 p-5 text-sm"><div className="flex justify-between"><dt className="text-muted">Taxable base (after discounts)</dt><dd>{m(tax.taxable)}</dd></div><div className="flex justify-between font-semibold"><dt>Tax collected</dt><dd>{m(tax.tax)}</dd></div></dl></Card></div>);
       })()}
     </div>

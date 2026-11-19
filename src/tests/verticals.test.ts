@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { createDb, type DB } from "@/db/client";
-import { notifications, products, tenants, inventoryMovements } from "@/db/schema";
+import { customers, notifications, products, tenants, inventoryMovements } from "@/db/schema";
 import { registerOwner } from "@/server/auth";
 import { buildCtx, type Ctx } from "@/server/ctx";
 import { createAppointment, findSlots } from "@/server/services/appointments";
@@ -66,9 +66,10 @@ describe("module enforcement on the server", () => {
 });
 
 describe("non-stocked items (restaurant menu, services-like goods)", () => {
-  let cafe: Ctx; let menuId: string; let stockedId: string;
+  let cafe: Ctx; let menuId: string; let stockedId: string; let guest: string;
   beforeAll(async () => {
     cafe = await make("restaurant", "cafe");
+    guest = (await db.insert(customers).values({ tenantId: cafe.tenantId, name: "Regular guest" }).returning())[0].id;
     menuId = await saveProduct(cafe, { name: "Chicken Karahi", sellPrice: 1200, costPrice: 400, trackStock: false, minStock: 5 });
     stockedId = await saveProduct(cafe, { name: "Bottled Water", sellPrice: 100, costPrice: 40, initialQuantity: 3, minStock: 1 });
   });
@@ -82,10 +83,10 @@ describe("non-stocked items (restaurant menu, services-like goods)", () => {
     expect(lows.some((n) => n.title.includes("Chicken Karahi"))).toBe(false);
   });
   it("still enforces stock on tracked items in the same business", async () => {
-    await expect(checkout(cafe, { items: [{ kind: "product", id: stockedId, quantity: 9 }], idempotencyKey: "cafe-water-0001", creditSale: true, payments: [] })).rejects.toThrow(/stock/i);
+    await expect(checkout(cafe, { items: [{ kind: "product", id: stockedId, quantity: 9 }], idempotencyKey: "cafe-water-0001", creditSale: true, customerId: guest, payments: [] })).rejects.toThrow(/stock/i);
   });
   it("voiding an unpaid sale of an untracked item does not invent stock", async () => {
-    const r = await checkout(cafe, { items: [{ kind: "product", id: menuId, quantity: 2 }], idempotencyKey: "cafe-void-0001", creditSale: true, payments: [] });
+    const r = await checkout(cafe, { items: [{ kind: "product", id: menuId, quantity: 2 }], idempotencyKey: "cafe-void-0001", creditSale: true, customerId: guest, payments: [] });
     await voidSale(cafe, r.transactionId, "guest left");
     expect((await db.select().from(products).where(eq(products.id, menuId)))[0].quantity).toBe(0);
   });

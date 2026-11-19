@@ -124,7 +124,7 @@ test("POS: add a service, pay in full, get a receipt", async ({ page }) => {
   await page.getByRole("button", { name: "Pay full amount" }).click();
   await page.getByRole("button", { name: /^Charge/ }).click();
   await expect(page.getByText("Sale complete")).toBeVisible({ timeout: 20_000 });
-  await page.getByRole("link", { name: /View \/ print receipt/ }).click();
+  await page.getByRole("link", { name: "View receipt" }).click();
   await expect(page.getByRole("heading", { name: /Invoice RHS-/ })).toBeVisible();
 });
 
@@ -290,8 +290,8 @@ test.describe("pharmacy pack", () => {
     await page.getByRole("button", { name: "Pay full amount" }).click();
     await page.getByRole("button", { name: /^Charge/ }).click();
     await expect(page.getByText("Sale complete")).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("link", { name: /View \/ print receipt/ }).click();
-    await expect(page.getByText("Panadol 500mg (strip of 10)")).toBeVisible();
+    await page.getByRole("link", { name: "View receipt" }).click();
+    await expect(page.getByLabel("Invoice document").getByText("Panadol 500mg (strip of 10)")).toBeVisible();
   });
 
   test("expiry page lists the expired batch and the owner can write it off", async ({ page }) => {
@@ -319,5 +319,108 @@ test.describe("pharmacy pack", () => {
     await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Expiry alerts" })).toHaveCount(0);
     await page.goto("/expiry");
     await expect(page).toHaveURL(/dashboard/);
+  });
+});
+
+test.describe("POS extras: returns, coupons, credit, receipts, day close", () => {
+  test("owner returns an item and a credit note appears on the sale", async ({ page }) => {
+    await login(page, "owner@glow.demo");
+    await page.goto("/invoices?status=paid");
+    await page.locator("table a[href^='/invoices/']").first().click();
+    await expect(page.getByRole("heading", { name: /^Invoice / })).toBeVisible();
+    await page.getByRole("button", { name: "Return items" }).click();
+    const dlg = page.getByRole("dialog");
+    await dlg.getByLabel(/Return quantity for/).first().fill("1");
+    await dlg.getByLabel(/Reason/).fill("customer unhappy");
+    await dlg.getByRole("button", { name: "Issue credit note" }).click();
+    await expect(page.getByText(/Credit note CN-\d+/).first()).toBeVisible();
+    await page.reload();
+    await expect(page.getByText("Credit notes (returns)")).toBeVisible();
+    await page.getByRole("link", { name: /^CN-/ }).first().click();
+    await expect(page.getByRole("heading", { name: /^Credit note CN-/ })).toBeVisible();
+  });
+
+  test("create a coupon and use it at the POS", async ({ page }) => {
+    await login(page, "owner@royal.demo");
+    await page.goto("/coupons");
+    await page.getByRole("button", { name: "New coupon" }).click();
+    const dlg = page.getByRole("dialog");
+    await dlg.locator("input[name=code]").fill("E2E10");
+    await dlg.locator("input[name=value]").fill("10");
+    await dlg.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("cell", { name: /E2E10/ })).toBeVisible();
+
+    await page.goto("/pos");
+    await page.locator("section button").filter({ hasText: /PKR/ }).first().click();
+    await page.getByLabel("Coupon code").fill("e2e10");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.getByText("E2E10", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Pay full amount" }).click();
+    await page.getByRole("button", { name: /^Charge/ }).click();
+    await expect(page.getByText("Sale complete")).toBeVisible({ timeout: 30_000 });
+
+    await page.goto("/coupons");
+    await expect(page.getByRole("row", { name: /E2E10/ })).toContainText("1"); // use counted
+  });
+
+  test("a bad coupon is refused with a clear message", async ({ page }) => {
+    await login(page, "owner@royal.demo");
+    await page.goto("/pos");
+    await page.locator("section button").filter({ hasText: /PKR/ }).first().click();
+    await page.getByLabel("Coupon code").fill("NOPE123");
+    await page.getByRole("button", { name: "Apply" }).click();
+    await expect(page.getByText(/not valid/i).first()).toBeVisible();
+  });
+
+  test("credit sale needs a customer, then the balance is collected from the customer page", async ({ page }) => {
+    await login(page, "owner@royal.demo");
+    await page.goto("/pos");
+    const credit = page.getByLabel(/Leave balance on the customer account/);
+    await expect(credit).toBeDisabled(); // walk-in cannot take credit
+    await page.getByLabel("Customer", { exact: true }).selectOption({ label: "Zainab Ali" });
+    await expect(credit).toBeEnabled();
+    await credit.check();
+    await page.locator("section button").filter({ hasText: /PKR/ }).first().click();
+    await page.getByRole("button", { name: /^Charge/ }).click();
+    await expect(page.getByText("Sale complete")).toBeVisible({ timeout: 30_000 });
+
+    await page.goto("/customers?q=Zainab");
+    await page.getByRole("link", { name: "Zainab Ali" }).first().click();
+    await expect(page.getByText("Owes (account balance)")).toBeVisible();
+    await expect(page.getByText("Unpaid invoices", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Receive payment" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Save" }).click();
+    await expect(page.getByText(/Payment of .* received/)).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Receive payment" })).toHaveCount(0);
+  });
+
+  test("thermal receipt is a plain printable page without the app menu", async ({ page }) => {
+    await login(page, "owner@royal.demo");
+    await page.goto("/pos");
+    await page.locator("section button").filter({ hasText: /PKR/ }).first().click();
+    await page.getByRole("button", { name: "Pay full amount" }).click();
+    await page.getByRole("button", { name: /^Charge/ }).click();
+    await expect(page.getByText("Sale complete")).toBeVisible({ timeout: 30_000 });
+    const href = await page.getByRole("link", { name: "Print thermal receipt" }).getAttribute("href");
+    expect(href).toMatch(/^\/receipt\/[0-9a-f-]{36}\?auto=1$/);
+    await page.goto(href!.replace("?auto=1", ""));
+    await expect(page.getByLabel("Receipt")).toContainText("RECEIPT");
+    await expect(page.getByLabel("Receipt")).toContainText("Royal Hair Studio");
+    await expect(page.getByRole("navigation", { name: "Main" })).toHaveCount(0);
+  });
+
+  test("closing the till records expected vs counted cash", async ({ page }) => {
+    await login(page, "owner@royal.demo");
+    await page.goto("/day-close");
+    await expect(page.getByRole("heading", { name: "Day close" })).toBeVisible();
+    await page.getByRole("button", { name: "Close the till" }).click();
+    const dlg = page.getByRole("dialog");
+    await dlg.getByLabel("Cash counted now").fill("0");
+    await expect(dlg.getByText("Expected cash")).toBeVisible();
+    await dlg.getByRole("button", { name: "Save close" }).click();
+    await expect(page.getByText(/Shift closed/)).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("cell", { name: /Balanced|PKR/ }).first()).toBeVisible();
   });
 });

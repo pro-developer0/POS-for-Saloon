@@ -3,7 +3,7 @@
 Legend: ✅ done & verified · 🟡 partial · ❌ not done
 
 ## Verified
-- ✅ 83 unit/integration tests (`npm test`) + 24 Playwright browser tests (`npm run test:e2e`) pass: tenant isolation, permissions, booking rules, POS/financials, inventory/purchases, auth, AI failure handling
+- ✅ 108 unit/integration tests (`npm test`) + 30 Playwright browser tests (`npm run test:e2e`) pass: tenant isolation, permissions, booking rules, POS/financials, inventory/purchases, auth, AI failure handling
 - ✅ `npm run build` passes (types + lint); 30 authenticated pages smoke-tested against both demo tenants with 0 server errors
 - ✅ Cross-tenant checks: spoofed tenant cookie, foreign invoice id (404), foreign customer/product/service/staff ids in forms
 
@@ -21,7 +21,8 @@ Legend: ✅ done & verified · 🟡 partial · ❌ not done
 | Customers/CRM, profile, tags, loyalty, archive | ✅ | Loyalty *earning* works; no redemption flow |
 | Services (categories, reorder, staff eligibility, archive) | ✅ | Service image field exists, no upload UI |
 | Staff (schedule, breaks, time off, commission, salary perm) | ✅ | |
-| POS (split/partial payments, discounts, tax, stock, commission, receipt) | ✅ | **Coupons not implemented** |
+| POS (split/partial payments, discounts, tax, stock, commission, receipt) | ✅ | |
+| Returns & refunds (credit notes), customer credit (udhaar, limits, receive payment), coupons, thermal 80 mm receipt, day-close cash count | ✅ | Returns are separate negative credit notes (sale never edited; all reports net automatically); refunds need the sales.refund permission (not cashiers); credit sales require a customer; coupons validated server-side. Receipt prints via the browser (no direct ESC/POS printer driver). No store-credit/exchange flow |
 | Invoices, payments, void, print | 🟡 | PDF = browser "Print / Save as PDF" (no server-side PDF generator) |
 | Inventory, movements, valuation, low-stock notifications | ✅ | Service-linked product usage not implemented |
 | Pharmacy pack (batches + expiry, soonest-expiry-first selling, expired stock blocked, expiry alerts + write-off, generic name/strength/form, sell by unit or strip/box, Pharmacist role) | ✅ | 23 unit tests + 6 browser tests. NOT included by request: prescriptions, barcode scanning. Not a regulatory sign-off: have a licensed pharmacist/DRAP-aware advisor review before selling to pharmacies |

@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { createDb, type DB } from "@/db/client";
-import { inventoryMovements, notifications, productBatches, products, transactionItemBatches, transactionItems, users } from "@/db/schema";
+import { customers, inventoryMovements, notifications, productBatches, products, transactionItemBatches, transactionItems, users } from "@/db/schema";
 import { seedDemo, DEMO_USERS } from "@/server/seed";
 import { buildCtx, type Ctx } from "@/server/ctx";
 import { checkout, voidSale } from "@/server/services/pos";
@@ -15,8 +15,13 @@ const uid = async (e: string) => (await db.select().from(users).where(eq(users.e
 const prod = async (name: string) => (await db.select().from(products).where(and(eq(products.tenantId, ids.pharmacy), eq(products.name, name))))[0];
 const batch = async (no: string) => (await db.select().from(productBatches).where(and(eq(productBatches.tenantId, ids.pharmacy), eq(productBatches.batchNo, no))))[0];
 let n = 0; const key = () => `pharm-test-${++n}-${Math.random().toString(36).slice(2, 8)}`;
-const sell = (ctx: Ctx, productId: string, quantity: number, extra: Record<string, unknown> = {}, pay = true) =>
-  checkout(ctx, { items: [{ kind: "product", id: productId, quantity, ...extra }], idempotencyKey: key(), ...(pay ? { payments: [{ method: "cash", amount: 100000 }] } : { creditSale: true, payments: [] }) });
+const custCache = new Map<string, string>();
+async function custFor(ctx: Ctx) { // credit sales must name a customer
+  if (!custCache.has(ctx.tenantId)) custCache.set(ctx.tenantId, (await db.select().from(customers).where(eq(customers.tenantId, ctx.tenantId)).limit(1))[0].id);
+  return custCache.get(ctx.tenantId)!;
+}
+const sell = async (ctx: Ctx, productId: string, quantity: number, extra: Record<string, unknown> = {}, pay = true) =>
+  checkout(ctx, { items: [{ kind: "product", id: productId, quantity, ...extra }], idempotencyKey: key(), ...(pay ? { payments: [{ method: "cash", amount: 100000 }] } : { creditSale: true, customerId: await custFor(ctx), payments: [] }) });
 // pay exactly: use credit sale so tests do not depend on prices
 const sellCredit = (ctx: Ctx, productId: string, quantity: number, extra: Record<string, unknown> = {}) => sell(ctx, productId, quantity, extra, false);
 
@@ -96,7 +101,7 @@ describe("selling by strip / box", () => {
   });
   it("units and packs of the same product can share one sale", async () => {
     const p = await prod("Brufen 400mg");
-    const r = await checkout(owner, { items: [{ kind: "product", id: p.id, quantity: 3 }, { kind: "product", id: p.id, quantity: 1, pack: true }], idempotencyKey: key(), creditSale: true, payments: [] });
+    const r = await checkout(owner, { items: [{ kind: "product", id: p.id, quantity: 3 }, { kind: "product", id: p.id, quantity: 1, pack: true }], idempotencyKey: key(), creditSale: true, customerId: await custFor(owner), payments: [] });
     expect(r.total).toBe("60.00"); // 3 x 5 + 1 x 45
     expect((await prod("Brufen 400mg")).quantity).toBe(p.quantity - 3 - 10);
   });

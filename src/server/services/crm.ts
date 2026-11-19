@@ -18,6 +18,7 @@ export const customerSchema = z.object({
   preferences: opt(z.string().max(1000)),
   tags: z.array(z.string().trim().min(1).max(30)).max(20).default([]),
   marketingConsent: z.boolean().default(false),
+  creditLimit: z.preprocess(emptyToNull, z.coerce.number().min(0).max(100_000_000).transform((n) => n.toFixed(2)).nullable().optional()), // blank = no limit
 });
 
 export async function listCustomers(ctx: Ctx, o: { q?: string; tag?: string; archived?: boolean } = {}) {
@@ -30,6 +31,7 @@ export async function listCustomers(ctx: Ctx, o: { q?: string; tag?: string; arc
     lastVisit: sql<Date | null>`(select max(a.starts_at) from appointments a where a.customer_id = ${customers.id} and a.tenant_id = ${ctx.tenantId} and a.status = 'completed')`,
     nextAppt: sql<Date | null>`(select min(a.starts_at) from appointments a where a.customer_id = ${customers.id} and a.tenant_id = ${ctx.tenantId} and a.starts_at > now() and a.status in ('pending','confirmed'))`,
     spent: sql<string>`coalesce((select sum(t.paid) from transactions t where t.customer_id = ${customers.id} and t.tenant_id = ${ctx.tenantId} and t.status <> 'cancelled'),0)`,
+    balance: sql<string>`greatest(0, coalesce((select sum(t.total - t.paid) from transactions t where t.customer_id = ${customers.id} and t.tenant_id = ${ctx.tenantId} and t.status <> 'cancelled'),0))`,
   }).from(customers).where(and(...conds)).orderBy(asc(customers.name)).limit(500);
 }
 

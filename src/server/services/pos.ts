@@ -6,6 +6,8 @@ import {
 } from "@/db/schema";
 import type { DB } from "@/db/client";
 import { allocateFefo, batchesOn } from "./batches";
+import { consumeCoupon, evaluateCoupon, releaseCoupon } from "./coupons";
+import { assertCreditAllowed, saleBalances } from "./ledger";
 import { AppError, audit, need, type Ctx } from "../ctx";
 import { fromCents, pctOf, toCents } from "@/lib/money";
 
@@ -26,6 +28,7 @@ export const checkoutSchema = z.object({
   payments: z.array(z.object({ method: z.string().min(1).max(30), amount: amt, note: z.string().max(200).optional() })).max(10).default([]),
   notes: z.string().max(500).optional().nullable(),
   creditSale: z.boolean().default(false), // allow leaving a balance (invoice)
+  couponCode: z.string().trim().max(40).optional().nullable(),
 });
 
 export type CheckoutResult = { transactionId: string; invoiceNumber: string; total: string; paid: string; status: string; duplicate?: boolean };
@@ -85,11 +88,14 @@ export async function checkout(ctx: Ctx, raw: unknown): Promise<CheckoutResult> 
       });
 
       const sub = lines.reduce((s, l) => s + l.net, 0);
-      if (v.discount > sub) throw new AppError("Order discount exceeds subtotal");
+      let couponRow: Awaited<ReturnType<typeof evaluateCoupon>>["coupon"] | null = null;
+      let orderDisc = v.discount; // manual discount + coupon discount (coupon is validated here, on the server)
+      if (v.couponCode) { const ev = await evaluateCoupon(tx as unknown as DB, ctx, v.couponCode, sub); couponRow = ev.coupon; orderDisc += ev.discountCents; }
+      if (orderDisc > sub) throw new AppError("Order discount exceeds subtotal");
       // allocate order-level discount proportionally; remainder to last line
-      let left = v.discount;
+      let left = orderDisc;
       lines.forEach((l, idx) => {
-        const share = idx === lines.length - 1 ? left : sub ? Math.min(left, Math.round((v.discount * l.net) / sub)) : 0;
+        const share = idx === lines.length - 1 ? left : sub ? Math.min(left, Math.round((orderDisc * l.net) / sub)) : 0;
         left -= share; l.net -= share; l.disc += share;
         l.tax = l.taxable ? pctOf(l.net, t.taxRate) : 0;
       });
@@ -103,6 +109,7 @@ export async function checkout(ctx: Ctx, raw: unknown): Promise<CheckoutResult> 
       if (paid > total) throw new AppError("Payments exceed the total due.");
       if (paid < total && !v.creditSale) throw new AppError("Payment is less than the total. Enable 'leave balance on invoice' for partial payment.");
       const status = paid === total ? "paid" : paid > 0 ? "partial" : "unpaid";
+      await assertCreditAllowed(tx as unknown as DB, ctx, v.customerId, total - paid); // needs a customer; respects their credit limit
 
       // stock deduction (atomic and guarded). Batch-managed products sell in-date batches soonest-expiry-first.
       const allocs = new Map<number, { batchId: string; qty: number }[]>();
@@ -119,8 +126,9 @@ export async function checkout(ctx: Ctx, raw: unknown): Promise<CheckoutResult> 
       const [txn] = await tx.insert(transactions).values({
         tenantId: ctx.tenantId, customerId: v.customerId ?? null, staffId: v.staffId ?? null, idempotencyKey: v.idempotencyKey,
         subtotal: fromCents(subtotalGross), discount: fromCents(itemDiscounts), tax: fromCents(taxTotal), total: fromCents(total), paid: fromCents(paid),
-        status, notes: v.notes ?? null, createdBy: ctx.userId,
+        status, notes: v.notes ?? null, couponCode: couponRow?.code ?? null, createdBy: ctx.userId,
       }).returning();
+      if (couponRow) await consumeCoupon(tx as unknown as DB, ctx.tenantId, couponRow.id);
 
       const insertedItems = await tx.insert(transactionItems).values(lines.map((l) => ({
         tenantId: ctx.tenantId, transactionId: txn.id, kind: l.kind,
@@ -195,11 +203,12 @@ export async function addPayment(ctx: Ctx, transactionId: string, method: string
     const [t] = await tx.select().from(transactions).where(and(eq(transactions.id, transactionId), eq(transactions.tenantId, ctx.tenantId))).for("update");
     if (!t) throw new AppError("Sale not found", "not_found");
     if (t.status === "cancelled") throw new AppError("Sale is cancelled");
-    const due = toCents(t.total) - toCents(t.paid);
+    if (t.kind !== "sale") throw new AppError("Payments can only be added to sales.");
+    const due = (await saleBalances(tx as unknown as DB, ctx.tenantId, [t.id])).get(t.id) ?? 0; // includes returns that reduced the debt
     if (amount > due) throw new AppError("Payment exceeds the outstanding balance");
     await tx.insert(payments).values({ tenantId: ctx.tenantId, transactionId, method, amount: fromCents(amount), note, createdBy: ctx.userId });
     const paid = toCents(t.paid) + amount;
-    await tx.update(transactions).set({ paid: fromCents(paid), status: paid === toCents(t.total) ? "paid" : "partial" }).where(eq(transactions.id, transactionId));
+    await tx.update(transactions).set({ paid: fromCents(paid), status: due - amount <= 0 ? "paid" : "partial" }).where(eq(transactions.id, transactionId));
     await audit({ ...ctx, db: tx as unknown as Ctx["db"] }, "payment.add", "transaction", transactionId, { amount: fromCents(amount), method });
   });
 }
@@ -212,7 +221,10 @@ export async function voidSale(ctx: Ctx, transactionId: string, reason: string) 
     const [t] = await tx.select().from(transactions).where(and(eq(transactions.id, transactionId), eq(transactions.tenantId, ctx.tenantId))).for("update");
     if (!t) throw new AppError("Sale not found", "not_found");
     if (t.status === "cancelled") return;
-    if (toCents(t.paid) > 0) throw new AppError("Sales with payments cannot be voided. Issue a refund process instead.");
+    if (t.kind !== "sale") throw new AppError("Credit notes cannot be voided.");
+    const [hasNotes] = await tx.select({ id: transactions.id }).from(transactions).where(and(eq(transactions.refTransactionId, t.id), eq(transactions.tenantId, ctx.tenantId))).limit(1);
+    if (hasNotes) throw new AppError("This sale has returns and cannot be voided.");
+    if (toCents(t.paid) > 0) throw new AppError("Sales with payments cannot be voided. Use Return items to refund them.");
     const items = await tx.select().from(transactionItems).where(and(eq(transactionItems.transactionId, transactionId), eq(transactionItems.tenantId, ctx.tenantId)));
     for (const i of items.filter((x) => x.kind === "product" && x.productId)) {
       const units = i.stockUnits || i.quantity; // rows from before pack selling have stockUnits = 0
@@ -228,6 +240,7 @@ export async function voidSale(ctx: Ctx, transactionId: string, reason: string) 
         await tx.insert(inventoryMovements).values({ tenantId: ctx.tenantId, productId: i.productId!, delta: units, balanceAfter: p.q, reason: "return", refType: "transaction", refId: transactionId, userId: ctx.userId });
       }
     }
+    if (t.couponCode) await releaseCoupon(tx as unknown as DB, ctx.tenantId, t.couponCode);
     await tx.update(transactions).set({ status: "cancelled", notes: `${t.notes ?? ""} [VOID: ${reason}]`.trim() }).where(eq(transactions.id, transactionId));
     await tx.update(invoices).set({ cancelled: true }).where(eq(invoices.transactionId, transactionId));
     await tx.delete(commissions).where(eq(commissions.transactionId, transactionId));
@@ -241,9 +254,13 @@ export async function listInvoices(ctx: Ctx, o: { status?: string; q?: string } 
     .from(invoices).innerJoin(transactions, eq(transactions.id, invoices.transactionId)).leftJoin(customers, eq(customers.id, transactions.customerId))
     .where(eq(invoices.tenantId, ctx.tenantId)).orderBy(desc(invoices.createdAt)).limit(500);
   const now = new Date().toISOString().slice(0, 10);
+  const sales = rows.filter((r) => r.t.kind === "sale").map((r) => r.t.id);
+  const bal = await saleBalances(ctx.db, ctx.tenantId, sales);
   const withStatus = rows.map((r) => {
-    const st = r.inv.cancelled ? "cancelled" : r.t.status === "paid" ? "paid" : r.inv.dueDate && r.inv.dueDate < now ? "overdue" : r.t.status === "partial" ? "partially_paid" : "unpaid";
-    return { ...r, status: st, balance: fromCents(toCents(r.t.total) - toCents(r.t.paid)) };
+    if (r.t.kind === "return") return { ...r, status: r.inv.cancelled ? "cancelled" : "credit_note", balance: "0.00" };
+    const b = Math.max(0, bal.get(r.t.id) ?? 0);
+    const st = r.inv.cancelled ? "cancelled" : b === 0 ? "paid" : r.inv.dueDate && r.inv.dueDate < now ? "overdue" : toCents(r.t.paid) > 0 ? "partially_paid" : "unpaid";
+    return { ...r, status: st, balance: fromCents(b) };
   });
   return withStatus.filter((r) => (!o.status || r.status === o.status) && (!o.q || r.inv.number.toLowerCase().includes(o.q.toLowerCase()) || (r.customerName ?? "").toLowerCase().includes(o.q.toLowerCase())));
 }
@@ -256,5 +273,11 @@ export async function getInvoiceDetail(ctx: Ctx, transactionId: string) {
   if (!row) throw new AppError("Invoice not found", "not_found");
   const items = await ctx.db.select().from(transactionItems).where(and(eq(transactionItems.transactionId, transactionId), eq(transactionItems.tenantId, ctx.tenantId)));
   const pays = await ctx.db.select().from(payments).where(and(eq(payments.transactionId, transactionId), eq(payments.tenantId, ctx.tenantId))).orderBy(payments.createdAt);
-  return { ...row, items, payments: pays, balance: fromCents(toCents(row.t.total) - toCents(row.t.paid)) };
+  let balance = "0.00", refInvoice: { id: string; number: string } | null = null;
+  if (row.t.kind === "sale") balance = fromCents(Math.max(0, (await saleBalances(ctx.db, ctx.tenantId, [row.t.id])).get(row.t.id) ?? 0));
+  else if (row.t.refTransactionId) {
+    const [ri] = await ctx.db.select({ id: invoices.transactionId, number: invoices.number }).from(invoices).where(and(eq(invoices.transactionId, row.t.refTransactionId), eq(invoices.tenantId, ctx.tenantId)));
+    refInvoice = ri ?? null;
+  }
+  return { ...row, items, payments: pays, balance, refInvoice };
 }

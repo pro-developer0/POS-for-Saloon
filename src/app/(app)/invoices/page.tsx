@@ -15,7 +15,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
       <PageHeader title="Invoices" desc="Every sale creates a numbered invoice. Paid records are never silently edited." />
       <form className="card mb-4 flex flex-wrap gap-3 p-4">
         <input name="q" defaultValue={sp.q} className="input max-w-xs" placeholder="Invoice # or customer…" aria-label="Search" />
-        <select name="status" defaultValue={sp.status ?? ""} className="input max-w-[12rem]" aria-label="Status"><option value="">All statuses</option>{["unpaid", "partially_paid", "paid", "overdue", "cancelled"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select>
+        <select name="status" defaultValue={sp.status ?? ""} className="input max-w-[12rem]" aria-label="Status"><option value="">All statuses</option>{["unpaid", "partially_paid", "paid", "overdue", "cancelled", "credit_note"].map((s) => <option key={s} value={s}>{s.replace("_", " ")}</option>)}</select>
         <button className="btn">Filter</button>
       </form>
       <Card>

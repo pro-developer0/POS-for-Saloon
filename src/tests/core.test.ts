@@ -13,7 +13,7 @@ import { registerOwner, verifyLogin } from "@/server/auth";
 import { toCents, fromCents, pctOf } from "@/lib/money";
 import { addDays, zonedParts, zonedToUtc } from "@/lib/time";
 
-let db: DB; let royal: Ctx; let glow: Ctx; let ids: Record<string, string>;
+let db: DB; let royal: Ctx; let glow: Ctx; let ids: Record<string, string>; let rc: string; // rc = a Royal customer (credit sales need a customer)
 const uid = async (email: string) => (await db.select().from(users).where(eq(users.email, email)))[0].id;
 
 beforeAll(async () => {
@@ -21,6 +21,7 @@ beforeAll(async () => {
   ids = await seedDemo(db);
   royal = await buildCtx(db, await uid(DEMO_USERS.royal), ids.royal);
   glow = await buildCtx(db, await uid(DEMO_USERS.glow), ids.glow);
+  rc = (await db.select().from(customers).where(eq(customers.tenantId, ids.royal)))[0].id;
 });
 
 /** next open weekday at hh:mm local, in the tenant tz */
@@ -183,13 +184,13 @@ describe("POS & financials", () => {
   it("refuses to oversell and leaves stock and sales unchanged", async () => {
     const [p] = await db.select().from(products).where(and(eq(products.tenantId, ids.royal), eq(products.sku, "RHS-SHP")));
     const before = (await db.select().from(transactions).where(eq(transactions.tenantId, ids.royal))).length;
-    await expect(checkout(royal, { items: [{ kind: "product", id: p.id, quantity: p.quantity + 1 }], idempotencyKey: "pos-over-0001", creditSale: true, payments: [] })).rejects.toThrow(/stock/i);
+    await expect(checkout(royal, { items: [{ kind: "product", id: p.id, quantity: p.quantity + 1 }], idempotencyKey: "pos-over-0001", creditSale: true, customerId: rc, payments: [] })).rejects.toThrow(/stock/i);
     expect((await db.select().from(transactions).where(eq(transactions.tenantId, ids.royal))).length).toBe(before);
     expect((await db.select().from(products).where(eq(products.id, p.id)))[0].quantity).toBe(p.quantity);
   });
   it("supports discounts, partial payment and settlement; rejects overpayment", async () => {
     const [svc] = await db.select().from(services).where(and(eq(services.tenantId, ids.royal), eq(services.name, "Hair Color")));
-    const r = await checkout(royal, { items: [{ kind: "service", id: svc.id, quantity: 1, discount: 500 }], discount: 500, idempotencyKey: "pos-part-0001", creditSale: true, payments: [{ method: "cash", amount: 2000 }] });
+    const r = await checkout(royal, { items: [{ kind: "service", id: svc.id, quantity: 1, discount: 500 }], discount: 500, idempotencyKey: "pos-part-0001", creditSale: true, customerId: rc, payments: [{ method: "cash", amount: 2000 }] });
     expect(r.total).toBe("5500.00");
     expect(r.status).toBe("partial");
     await expect(addPayment(royal, r.transactionId, "cash", 4000)).rejects.toThrow(/exceeds/i);
@@ -205,7 +206,7 @@ describe("POS & financials", () => {
   it("voiding an unpaid sale restocks inventory and logs a movement", async () => {
     const p = (await db.select().from(products).where(eq(products.tenantId, ids.royal))).sort((a, b) => b.quantity - a.quantity)[0];
     expect(p.quantity).toBeGreaterThanOrEqual(3);
-    const r = await checkout(royal, { items: [{ kind: "product", id: p.id, quantity: 3 }], idempotencyKey: "pos-void-0001", creditSale: true, payments: [] });
+    const r = await checkout(royal, { items: [{ kind: "product", id: p.id, quantity: 3 }], idempotencyKey: "pos-void-0001", creditSale: true, customerId: rc, payments: [] });
     expect((await db.select().from(products).where(eq(products.id, p.id)))[0].quantity).toBe(p.quantity - 3);
     await voidSale(royal, r.transactionId, "customer left");
     expect((await db.select().from(products).where(eq(products.id, p.id)))[0].quantity).toBe(p.quantity);

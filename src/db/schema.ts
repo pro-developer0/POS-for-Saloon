@@ -104,6 +104,7 @@ export const customers = pgTable("customers", {
   preferences: text("preferences"),
   loyaltyPoints: integer("loyalty_points").notNull().default(0),
   marketingConsent: boolean("marketing_consent").notNull().default(false),
+  creditLimit: numeric("credit_limit", { precision: 12, scale: 2 }), // max unpaid balance ("udhaar"); null = no limit
   archived: boolean("archived").notNull().default(false),
   createdAt: createdAt(),
 }, (t) => [index("customers_tenant").on(t.tenantId, t.name)]);
@@ -257,8 +258,10 @@ export const transactions = pgTable("transactions", {
   paid: money("paid"),
   status: text("status").notNull().default("unpaid"), // draft|unpaid|partial|paid|cancelled
   notes: text("notes"), couponCode: text("coupon_code"),
+  kind: text("kind").notNull().default("sale"), // sale | return (credit note: negative amounts, never edits the original sale)
+  refTransactionId: uuid("ref_transaction_id"), returnReason: text("return_reason"),
   createdBy: uuid("created_by"), createdAt: createdAt(),
-}, (t) => [index("tx_tenant_time").on(t.tenantId, t.createdAt), uniqueIndex("tx_idem_uq").on(t.tenantId, t.idempotencyKey)]);
+}, (t) => [index("tx_ref").on(t.refTransactionId), index("tx_tenant_time").on(t.tenantId, t.createdAt), uniqueIndex("tx_idem_uq").on(t.tenantId, t.idempotencyKey)]);
 
 export const transactionItems = pgTable("transaction_items", {
   id: id(), tenantId: tenantId(),
@@ -269,6 +272,7 @@ export const transactionItems = pgTable("transaction_items", {
   name: text("name").notNull(),
   quantity: integer("quantity").notNull(), unitPrice: money("unit_price"),
   stockUnits: integer("stock_units").notNull().default(0), // base units taken from stock (quantity x pack size)
+  returnOfItemId: uuid("return_of_item_id"), // set on credit-note lines: which sale line is being returned
   discount: money("discount"), tax: money("tax"), lineTotal: money("line_total"),
 });
 
@@ -277,6 +281,7 @@ export const transactionItemBatches = pgTable("transaction_item_batches", {
   id: id(), tenantId: tenantId(),
   itemId: uuid("item_id").notNull().references(() => transactionItems.id, { onDelete: "cascade" }),
   batchId: uuid("batch_id").notNull(), quantity: integer("quantity").notNull(),
+  returnedQuantity: integer("returned_quantity").notNull().default(0),
 });
 
 export const payments = pgTable("payments", {
@@ -343,3 +348,24 @@ export const aiSavedContent = pgTable("ai_saved_content", {
 export const platformSettings = pgTable("platform_settings", {
   key: text("key").primaryKey(), value: jsonb("value").notNull(),
 });
+
+// Discount coupons (validated on the server at checkout).
+export const coupons = pgTable("coupons", {
+  id: id(), tenantId: tenantId(),
+  code: text("code").notNull(), description: text("description"),
+  type: text("type").notNull().default("percent"), // percent | fixed
+  value: numeric("value", { precision: 12, scale: 2 }).notNull(),
+  minSubtotal: money("min_subtotal"),
+  maxUses: integer("max_uses"), usedCount: integer("used_count").notNull().default(0),
+  expiresOn: date("expires_on"), active: boolean("active").notNull().default(true),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("coupons_code_uq").on(t.tenantId, t.code)]);
+
+// End-of-day / end-of-shift cash closing. Each close covers the time since the previous close.
+export const cashCloses = pgTable("cash_closes", {
+  id: id(), tenantId: tenantId(),
+  periodStart: tstz("period_start").notNull(), closedAt: tstz("closed_at").notNull().defaultNow(),
+  openingFloat: money("opening_float"), expectedCash: money("expected_cash"), countedCash: money("counted_cash"), difference: money("difference"),
+  totals: jsonb("totals").$type<Record<string, unknown>>().notNull().default({}),
+  note: text("note"), closedBy: uuid("closed_by"),
+}, (t) => [index("cash_closes_tenant").on(t.tenantId, t.closedAt)]);
