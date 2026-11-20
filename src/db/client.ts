@@ -15,7 +15,11 @@ export async function createDb(opts: { memory?: boolean } = {}): Promise<DB> {
     const { Pool } = await import("pg");
     const { drizzle } = await import("drizzle-orm/node-postgres");
     const { migrate } = await import("drizzle-orm/node-postgres/migrator");
-    const pg = drizzle(new Pool({ connectionString: url, max: 10 }), { schema });
+    // Hosted Postgres (Supabase, Neon…) requires SSL. Set DATABASE_SSL=false for a local/plain server.
+    const local = /@(localhost|127\.0\.0\.1)/.test(url);
+    const ssl = process.env.DATABASE_SSL === "false" || local ? undefined : { rejectUnauthorized: false };
+    const conn = url.replace(/([?&])sslmode=[^&]*&?/, "$1").replace(/[?&]$/, ""); // our ssl option must not be overridden by the URL
+    const pg = drizzle(new Pool({ connectionString: conn, ssl, max: Number(process.env.DATABASE_POOL_MAX ?? 5) }), { schema });
     await migrate(pg, { migrationsFolder: folder });
     return pg as unknown as DB;
   }
