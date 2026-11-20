@@ -20,7 +20,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ f
   const can = ctx.perms.has("appointments.manage");
   return (
     <div className="page-in">
-      <PageHeader title={labelsOf(ctx.tenant).appointments} desc="Bookings are validated against business hours, staff schedules, breaks, time off and conflicts."
+      <PageHeader title={labelsOf().appointments} desc="Bookings are validated against business hours, staff schedules, breaks, time off and conflicts."
         actions={can ? <BookingModal customers={opts.customers} services={opts.services} staff={opts.staff} today={today} /> : null} />
       <form className="card mb-4 grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-6">
         <input name="q" defaultValue={sp.q} placeholder="Search customer…" className="input col-span-2 sm:col-span-1" aria-label="Search" />

@@ -6,7 +6,6 @@ import { notifications } from "@/db/schema";
 import { AppShell, type NavItem } from "@/components/shell";
 import { logoutAction } from "@/app/actions";
 import { readableOn } from "@/lib/color";
-import { expiryNotify } from "@/server/services/batches";
 import { ActionButton } from "@/components/forms";
 import { resendVerificationAction } from "@/app/actions";
 
@@ -20,7 +19,6 @@ const NAV: (NavItem & { perm?: string; mod?: Module; lk?: "staff" | "services" |
   { href: "/services", label: "Services", icon: "Scissors", perm: "services.view", mod: "services", lk: "services" },
   { href: "/staff", label: "Staff", icon: "UserCog", perm: "staff.view", mod: "staff", lk: "staff" },
   { href: "/inventory", label: "Inventory", icon: "Boxes", perm: "inventory.view", mod: "inventory" },
-  { href: "/expiry", label: "Expiry alerts", icon: "Hourglass", perm: "inventory.view", mod: "batches" },
   { href: "/suppliers", label: "Suppliers", icon: "Truck", perm: "inventory.view", mod: "purchases" },
   { href: "/purchases", label: "Purchases", icon: "Receipt", perm: "inventory.view", mod: "purchases" },
   { href: "/expenses", label: "Expenses", icon: "Wallet", perm: "expenses.view", mod: "expenses" },
@@ -41,11 +39,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requireCtx();
   const user = (await getUser())!;
-  await expiryNotify(ctx).catch(() => {}); // de-duplicated in-app alerts for expired / expiring batches
   const [{ n }] = await ctx.db.select({ n: sql<number>`count(*)::int` }).from(notifications).where(and(eq(notifications.tenantId, ctx.tenantId), eq(notifications.read, false)));
-  const mods = modulesOf(ctx.tenant), L = labelsOf(ctx.tenant);
+  const mods = modulesOf(ctx.tenant), L = labelsOf();
   const nav: NavItem[] = NAV.filter((i) => (!i.perm || ctx.perms.has(i.perm)) && (!i.mod || mods.has(i.mod)))
     .map(({ perm, mod, lk, ...i }) => (void perm, void mod, lk ? { ...i, label: L[lk] } : i));
+  const notif = nav.find((i) => i.href === "/notifications"); if (notif && n > 0) notif.badge = n;
   if (user.isPlatformAdmin) nav.push({ href: "/admin", label: "Platform Admin", icon: "ShieldCheck" });
   const t = ctx.tenant;
   return (

@@ -127,7 +127,7 @@ export async function busiestDays(ctx: Ctx, r: Range) {
 export async function lowStock(ctx: Ctx) {
   need(ctx, "inventory.view");
   return ctx.db.select({ id: products.id, name: products.name, quantity: products.quantity, minStock: products.minStock }).from(products)
-    .where(and(eq(products.tenantId, ctx.tenantId), eq(products.active, true), eq(products.trackStock, true), sql`${products.quantity} <= ${products.minStock}`));
+    .where(and(eq(products.tenantId, ctx.tenantId), eq(products.active, true), sql`${products.quantity} <= ${products.minStock}`));
 }
 
 export async function recentTransactions(ctx: Ctx, limit = 8) {

@@ -22,7 +22,7 @@ async function adminLog(db: DB, adminId: string, action: string, tenantId?: stri
 
 export const createBusinessSchema = z.object({
   businessName: z.string().trim().min(2).max(120),
-  businessType: z.string().refine((t) => t in VERTICALS, "Choose a business type"),
+  businessType: z.string().refine((t) => t in VERTICALS, "Choose a salon type"),
   ownerName: z.string().trim().min(2).max(100),
   ownerEmail: z.string().trim().toLowerCase().email().max(200),
   password: z.string().max(200).optional().nullable(),

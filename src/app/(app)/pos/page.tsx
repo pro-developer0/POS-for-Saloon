@@ -1,5 +1,4 @@
 import { hasModule, labelsOf } from "@/lib/verticals";
-import { batchesOn, sellableMap } from "@/server/services/batches";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { requireCtx } from "@/server/session";
 import { Pos } from "@/components/pos";
@@ -18,7 +17,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
   ]);
   const owed = await ctx.db.execute<{ id: string; bal: string }>(sql`select customer_id id, sum(total - paid) bal from transactions where tenant_id = ${t} and customer_id is not null and status <> 'cancelled' group by customer_id having sum(total - paid) > 0`);
   const owedMap = new Map(owed.rows.map((r) => [r.id, r.bal]));
-  const sell = batchesOn(ctx) ? await sellableMap(ctx) : new Map<string, { sellable: number; expired: number; nearest: string | null }>();
   let pre;
   if (sp.appointment && /^[0-9a-f-]{36}$/.test(sp.appointment)) {
     const [a] = await ctx.db.select().from(appointments).where(and(eq(appointments.id, sp.appointment), eq(appointments.tenantId, t)));
@@ -27,8 +25,8 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ a
   return (
     <div className="page-in">
       <PageHeader title="Point of Sale" desc="Sell services and products, take split payments and print receipts." />
-      <Pos services={svc.map((s) => ({ id: s.id, name: s.name, price: s.price, taxable: s.taxable }))} products={prod.map((p) => { const b = sell.get(p.id); return { id: p.id, name: p.name, price: p.sellPrice, taxable: p.taxable, stock: p.trackStock ? (b ? b.sellable : p.quantity) : undefined, generic: p.genericName, strength: p.strength, unitLabel: p.unitLabel, packLabel: p.packLabel, unitsPerPack: p.unitsPerPack, packPrice: p.packPrice, nearest: b?.nearest ?? null, expired: b?.expired ?? 0 }; })}
-        customers={cust.map((x) => ({ ...x, balance: owedMap.get(x.id) ?? "0" }))} staff={st} methods={ctx.tenant.paymentMethods} taxRate={ctx.tenant.taxRate} currency={ctx.tenant.currency} pre={pre} showServices={hasModule(ctx.tenant, "services")} showStaff={hasModule(ctx.tenant, "staff")} noteLabel={labelsOf(ctx.tenant).posNote} productLabel={labelsOf(ctx.tenant).products} />
+      <Pos services={svc.map((s) => ({ id: s.id, name: s.name, price: s.price, taxable: s.taxable }))} products={prod.map((p) => ({ id: p.id, name: p.name, price: p.sellPrice, taxable: p.taxable, stock: p.quantity }))}
+        customers={cust.map((x) => ({ ...x, balance: owedMap.get(x.id) ?? "0" }))} staff={st} methods={ctx.tenant.paymentMethods} taxRate={ctx.tenant.taxRate} currency={ctx.tenant.currency} pre={pre} showServices={hasModule(ctx.tenant, "services")} showStaff={hasModule(ctx.tenant, "staff")} noteLabel={labelsOf().posNote} productLabel={labelsOf().products} />
     </div>
   );
 }

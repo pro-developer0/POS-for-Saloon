@@ -8,7 +8,7 @@ import { Card, PageHeader, Field, StatusBadge } from "@/components/ui";
 import { ActionButton, ModalForm } from "@/components/forms";
 import { addMemberAction, removeMemberAction } from "@/app/actions";
 import { ROLES } from "@/lib/permissions";
-import { MODULES, MODULE_INFO, modulesOf, verticalOf } from "@/lib/verticals";
+import { OPTIONAL_MODULES, MODULE_INFO, modulesOf, verticalOf } from "@/lib/verticals";
 
 export const metadata = { title: "Settings" };
 export default async function Page() {
@@ -26,7 +26,7 @@ export default async function Page() {
       <Card title="Team & access" className="mt-6" action={canMembers ? <ModalForm trigger="Add member" triggerClass="btn btn-sm btn-primary" title="Add team member" action={addMemberAction}>
         <Field label="Email"><input name="email" type="email" required className="input" /></Field>
         <Field label="Name (for new users)"><input name="name" className="input" /></Field>
-        <Field label="Role"><select name="role" className="input">{ROLES.filter((r) => r !== "owner" && (r !== "pharmacist" || t.businessType === "pharmacy")).map((r) => <option key={r} value={r}>{r}</option>)}</select></Field>
+        <Field label="Role"><select name="role" className="input">{ROLES.filter((r) => r !== "owner").map((r) => <option key={r} value={r}>{r}</option>)}</select></Field>
         <Field label="Temporary password (only if the person has no account yet)"><input name="password" type="password" minLength={10} className="input" autoComplete="new-password" /></Field>
       </ModalForm> : null}>
         <div className="overflow-x-auto"><table className="tbl"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th /></tr></thead>
@@ -37,13 +37,13 @@ export default async function Page() {
   );
 }
 
-function ModuleChecks({ t }: { t: Parameters<typeof modulesOf>[0] }) {
+function ModuleChecks({ t }: { t: Parameters<typeof modulesOf>[0] & { businessType: string } }) {
   const on = modulesOf(t);
   return (
     <div className="space-y-3">
       <input type="hidden" name="modulesPresent" value="1" />
-      <p className="text-sm text-muted">Business type: <b>{verticalOf(t.businessType).label}</b>. Switch features on or off for your business. Turning a module off hides it and blocks it on the server; your data is kept.</p>
-      {MODULES.map((m) => (
+      <p className="text-sm text-muted">Salon type: <b>{verticalOf(t.businessType).label}</b>. Appointments, services and stylists are always on. Turning a module off hides it and blocks it on the server; your data is kept.</p>
+      {OPTIONAL_MODULES.map((m) => (
         <label key={m} className="flex items-start gap-3 rounded-xl border border-line p-3 text-sm">
           <input type="checkbox" name="modules" value={m} defaultChecked={on.has(m)} className="mt-1" />
           <span><b>{MODULE_INFO[m].label}</b><span className="block text-muted">{MODULE_INFO[m].desc}</span></span>

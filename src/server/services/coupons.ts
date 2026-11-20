@@ -2,9 +2,8 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DB } from "@/db/client";
 import { coupons } from "@/db/schema";
-import { AppError, audit, need, type Ctx } from "../ctx";
+import { AppError, audit, need, todayLocal, type Ctx } from "../ctx";
 import { fromCents, pctOf, toCents } from "@/lib/money";
-import { todayLocal } from "./batches";
 
 const emptyToNull = (v: unknown) => (v === "" ? null : v);
 export const couponSchema = z.object({

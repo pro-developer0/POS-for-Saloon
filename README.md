@@ -1,6 +1,6 @@
-# OmniPOS (placeholder name)
+# SalonPro
 
-Multi-tenant POS & business-management SaaS for pharmacies, shops, restaurants, clinics, salons and more. One codebase, many independent businesses (tenants), each with its own
+Multi-tenant salon management SaaS: appointments, POS, clients, stylists, inventory and reports. One codebase, many independent salons (tenants), each with its own
 branding, users, customers, services, staff, appointments, sales, inventory, expenses, reports and optional AI.
 
 **Stack:** Next.js 15 (App Router, TypeScript) · Tailwind v4 · Drizzle ORM · PostgreSQL (embedded PGlite for local dev) · Zod ·
@@ -22,13 +22,9 @@ Demo logins (password for all: `Demo-Pass-123`) — **demo data only, never ship
 | Royal Hair Studio owner | owner@royal.demo | PKR, Asia/Karachi, rose branding |
 | Glow Beauty Lounge owner | owner@glow.demo | USD, America/New_York, 8.25% tax, teal branding |
 | Manager (Royal) / Cashier (Glow) | multi@demo.test | one login with a different role in each business; there is no business switcher in the UI, it opens the first business |
-| City Care Pharmacy owner | owner@pharmacy.demo | PKR, batches + expiry, strips/boxes, expired + near-expiry stock |
-| Pharmacist (City Care) | pharmacist@pharmacy.demo | dispenses + manages stock; no settings/team/salary |
 | Platform admin | admin@salonpro.local | `/admin` |
 
 `npm run demo:reset` wipes and reseeds the **embedded dev database only** (it refuses to run against `DATABASE_URL`).
-
-Existing dev database without the pharmacy? `npm run demo:add-pharmacy` adds it without touching other data.
 
 ## Scripts
 `dev` · `build` · `start` · `test` (Vitest, in-memory DB) · `typecheck` · `lint` · `db:generate` (new migration after editing

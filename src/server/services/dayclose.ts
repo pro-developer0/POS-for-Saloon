@@ -2,10 +2,9 @@ import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DB } from "@/db/client";
 import { cashCloses } from "@/db/schema";
-import { AppError, audit, need, type Ctx } from "../ctx";
+import { AppError, audit, need, todayLocal, type Ctx } from "../ctx";
 import { fromCents, toCents } from "@/lib/money";
 import { zonedToUtc } from "@/lib/time";
-import { todayLocal } from "./batches";
 
 /**
  * End-of-day / end-of-shift cash closing.

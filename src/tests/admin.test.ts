@@ -10,7 +10,7 @@ import { sessionStillValid } from "@/server/tokens";
 
 let db: DB; let adminId: string;
 const byEmail = async (e: string) => (await db.select().from(users).where(eq(users.email, e)))[0];
-const base = { businessName: "Noor Pharmacy", businessType: "pharmacy", ownerName: "Noor Owner", ownerEmail: "noor@client.test" };
+const base = { businessName: "Noor Salon", businessType: "hair_salon", ownerName: "Noor Owner", ownerEmail: "noor@client.test" };
 
 beforeAll(async () => {
   db = await createDb({ memory: true });
@@ -31,7 +31,7 @@ describe("create a client business + owner", () => {
     const r = await createBusinessWithOwner(db, adminId, base);
     expect(r.tempPassword).toBeTruthy();
     const [t] = await db.select().from(tenants).where(eq(tenants.id, r.tenantId));
-    expect(t.status).toBe("active"); expect(t.onboarded).toBe(false); expect(t.businessType).toBe("pharmacy"); expect(t.currency).toBe("PKR"); expect(t.timezone).toBe("Asia/Karachi");
+    expect(t.status).toBe("active"); expect(t.onboarded).toBe(false); expect(t.businessType).toBe("hair_salon"); expect(t.currency).toBe("PKR"); expect(t.timezone).toBe("Asia/Karachi");
     const u = await byEmail("noor@client.test");
     expect(u.mustChangePassword).toBe(true); expect(u.emailVerifiedAt).not.toBeNull();
     expect(u.passwordHash).not.toContain(r.tempPassword!); // never stored in plain text
@@ -49,7 +49,7 @@ describe("create a client business + owner", () => {
   });
   it("an existing user becomes owner of the new business without touching their password", async () => {
     const before = (await byEmail(DEMO_USERS.royal)).passwordHash;
-    const r = await createBusinessWithOwner(db, adminId, { ...base, businessName: "Second Shop", businessType: "retail", ownerEmail: DEMO_USERS.royal });
+    const r = await createBusinessWithOwner(db, adminId, { ...base, businessName: "Second Shop", businessType: "spa", ownerEmail: DEMO_USERS.royal });
     expect(r.existingUser).toBe(true); expect(r.tempPassword).toBeNull();
     const after = await byEmail(DEMO_USERS.royal);
     expect(after.passwordHash).toBe(before); expect(after.mustChangePassword).toBe(false);
@@ -57,7 +57,7 @@ describe("create a client business + owner", () => {
     expect(ms.filter((m) => m.role === "owner").length).toBeGreaterThanOrEqual(2);
   });
   it("rejects unknown business types, bad emails and disabled existing accounts", async () => {
-    await expect(createBusinessWithOwner(db, adminId, { ...base, businessType: "spaceship", ownerEmail: "a@client.test" })).rejects.toThrow(/business type/i);
+    await expect(createBusinessWithOwner(db, adminId, { ...base, businessType: "spaceship", ownerEmail: "a@client.test" })).rejects.toThrow(/salon type/i);
     await expect(createBusinessWithOwner(db, adminId, { ...base, ownerEmail: "not-an-email" })).rejects.toThrow();
     const u = await byEmail("typed@client.test");
     await setUserDisabled(db, adminId, u.id, true);

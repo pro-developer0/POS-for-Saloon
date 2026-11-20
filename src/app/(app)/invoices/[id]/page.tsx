@@ -9,7 +9,6 @@ import { ModalForm } from "@/components/forms";
 import { PrintButton } from "@/components/print-button";
 import { addPaymentAction, createReturnAction, voidSaleAction } from "@/app/actions";
 import { fmtDateTime } from "@/lib/time";
-import { batchesOn } from "@/server/services/batches";
 import { toCents, fromCents } from "@/lib/money";
 
 export const metadata = { title: "Invoice" };
@@ -38,13 +37,12 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
               <tbody>{lines.map(({ item, returned, returnable: rb }) => (
                 <tr key={item.id}><td>{item.name}</td><td className="text-right">{item.quantity}</td><td className="text-right">{returned}</td>
                   <td className="text-right"><input name={`qty_${item.id}`} type="number" min="0" max={rb} defaultValue="0" disabled={rb === 0} className="input !h-8 w-20 text-right" aria-label={`Return quantity for ${item.name}`} /></td>
-                  <td>{item.kind === "product" ? <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" name={`restock_${item.id}`} defaultChecked={!batchesOn(ctx)} />Restock</label> : <span className="text-xs text-muted">—</span>}</td></tr>))}</tbody></table></div>
+                  <td>{item.kind === "product" ? <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" name={`restock_${item.id}`} defaultChecked />Restock</label> : <span className="text-xs text-muted">—</span>}</td></tr>))}</tbody></table></div>
             <p className="text-xs text-muted">The refund amount is worked out from what the customer actually paid for each item (discount and tax included). If the customer still owes money on this sale, that is cancelled first and only the rest is paid back.</p>
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Refund paid by"><select name="refundMethod" className="input">{t.paymentMethods.map((m) => <option key={m} value={m}>{m.replace(/_/g, " ")}</option>)}</select></Field>
               <Field label="Reason (required)"><input name="reason" required minLength={3} className="input" placeholder="e.g. wrong item, unhappy with service" /></Field>
             </div>
-            {batchesOn(ctx) && <p className="text-xs text-muted">Medicines are not restocked by default. Tick Restock only when policy allows returned items to be sold again.</p>}
           </ModalForm>
         )}
         {can && !isNote && !d.inv.cancelled && bal > 0 && <ModalForm trigger="Record payment" title="Record payment" action={addPaymentAction}>

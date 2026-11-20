@@ -44,9 +44,9 @@ export function RegisterForm() {
         <div><label className="label" htmlFor="email">Email</label><input id="email" name="email" type="email" required className="input" autoComplete="email" /></div>
         <div><label className="label" htmlFor="password">Password</label><input id="password" name="password" type="password" required minLength={10} className="input" autoComplete="new-password" /><p className="mt-1 text-xs text-muted">At least 10 characters, with letters and numbers.</p></div>
         <div><label className="label" htmlFor="businessName">Business name</label><input id="businessName" name="businessName" required className="input" /></div>
-        <div><label className="label" htmlFor="businessType">Business type</label>
+        <div><label className="label" htmlFor="businessType">Salon type</label>
           <select id="businessType" name="businessType" className="input" required defaultValue="">
-            <option value="" disabled>Select your business type…</option>{BUSINESS_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+            <option value="" disabled>Select your salon type…</option>{BUSINESS_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
         {state && !state.ok && <p role="alert" className="rounded-lg bg-bad/10 px-3 py-2 text-sm text-bad">{state.error}</p>}
         <button className="btn btn-primary w-full" disabled={pending}>{pending ? "Creating…" : "Create account"}</button>
       </form>

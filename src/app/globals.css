@@ -3,14 +3,14 @@
 
 :root {
   --bg: #f6f6f9; --surface: #ffffff; --surface-2: #f0f0f5; --border: #e4e4ec; --text: #14141f; --muted: #6b6b80;
-  --brand: #7c3aed; --brand-fg: #ffffff; --accent: #f59e0b;
+  --brand: #8b5cf6; --brand-fg: #ffffff; --accent: #f59e0b;
   --success: #15803d; --danger: #dc2626; --warn: #b45309;
   --shadow: 0 1px 2px rgb(20 20 31 / 0.04), 0 4px 16px rgb(20 20 31 / 0.05);
 }
 .dark {
-  --bg: #0d0d14; --surface: #16161f; --surface-2: #1e1e2a; --border: #2a2a38; --text: #ececf4; --muted: #9a9ab0;
+  --bg: #141414; --surface: #1b1b1b; --surface-2: #252525; --border: #2c2c2c; --text: #f3f3f5; --muted: #8f8f9a;
   --success: #4ade80; --danger: #f87171; --warn: #fbbf24;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 16px rgb(0 0 0 / 0.3);
+  --shadow: none;
 }
 @theme inline {
   --color-bg: var(--bg); --color-surface: var(--surface); --color-surface2: var(--surface-2); --color-line: var(--border);
@@ -25,7 +25,8 @@ html.theme-anim *, html.theme-anim *::before, html.theme-anim *::after { transit
 
 *:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 6px; }
 
-.card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); }
+.dark .text-brand { color: color-mix(in srgb, var(--brand) 62%, white); }
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; height: 2.5rem; padding: 0 1rem; border-radius: 10px; font-size: .875rem; font-weight: 600;
   border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; transition: transform .12s ease, background-color .15s, box-shadow .15s, opacity .15s; white-space: nowrap; }
 .btn:hover { background: var(--surface-2); }

@@ -36,7 +36,7 @@ export default async function Page() {
   const catName = new Map(cats.map((c) => [c.id, c.name]));
   return (
     <div className="page-in">
-      <PageHeader title={labelsOf(ctx.tenant).services} desc="Your service catalog. Prices are tax-exclusive." actions={can ? <>
+      <PageHeader title={labelsOf().services} desc="Your service catalog. Prices are tax-exclusive." actions={can ? <>
         <ModalForm trigger="Add category" triggerClass="btn" title="New category" action={addCategoryAction}><Field label="Name"><input name="name" required className="input" /></Field></ModalForm>
         <ModalForm trigger="Add service" title="New service" action={saveServiceAction} wide><ServiceFields cats={cats} staff={staff} /></ModalForm></> : null} />
       <Card>

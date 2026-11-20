@@ -52,7 +52,7 @@ export const tenants = pgTable("tenants", {
   // branding
   logoUrl: text("logo_url"),
   faviconUrl: text("favicon_url"),
-  brandColor: text("brand_color").notNull().default("#7c3aed"),
+  brandColor: text("brand_color").notNull().default("#8b5cf6"),
   secondaryColor: text("secondary_color").notNull().default("#0f172a"),
   accentColor: text("accent_color").notNull().default("#f59e0b"),
   // locale
@@ -78,7 +78,7 @@ export const tenants = pgTable("tenants", {
   invoiceFooter: text("invoice_footer"),
   lowStockDefault: integer("low_stock_default").notNull().default(5),
   loyaltyPointsPerUnit: integer("loyalty_points_per_unit").notNull().default(1), // points per 10 currency units
-  // Enabled feature modules. null = use the business type preset (see src/lib/verticals.ts)
+  // Optional salon modules switched on. null = all (see src/lib/verticals.ts)
   modules: jsonb("modules").$type<string[] | null>(),
   aiEnabled: boolean("ai_enabled").notNull().default(true),
   aiDailyLimit: integer("ai_daily_limit").notNull().default(30),
@@ -191,12 +191,6 @@ export const products = pgTable("products", {
   minStock: integer("min_stock").notNull().default(5),
   supplierId: uuid("supplier_id").references(() => suppliers.id, { onDelete: "set null" }),
   taxable: boolean("taxable").notNull().default(true),
-  // pharmacy / pack selling. Stock quantity is ALWAYS counted in base units (e.g. tablets).
-  genericName: text("generic_name"), strength: text("strength"), dosageForm: text("dosage_form"),
-  unitLabel: text("unit_label").notNull().default("unit"), packLabel: text("pack_label"),
-  unitsPerPack: integer("units_per_pack").notNull().default(1),
-  packPrice: numeric("pack_price", { precision: 12, scale: 2 }), // null => sellPrice * unitsPerPack
-  trackStock: boolean("track_stock").notNull().default(true), // false for menu items / non-stocked goods
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
 }, (t) => [index("products_tenant").on(t.tenantId), uniqueIndex("products_sku_uq").on(t.tenantId, t.sku)]);
@@ -207,19 +201,9 @@ export const inventoryMovements = pgTable("inventory_movements", {
   delta: integer("delta").notNull(),
   balanceAfter: integer("balance_after").notNull(),
   reason: text("reason").notNull(), // sale | purchase | adjustment | initial | return
-  refType: text("ref_type"), refId: uuid("ref_id"), note: text("note"), batchId: uuid("batch_id"),
+  refType: text("ref_type"), refId: uuid("ref_id"), note: text("note"),
   userId: uuid("user_id"), createdAt: createdAt(),
 }, (t) => [index("invmov_product").on(t.productId, t.createdAt)]);
-
-// Batches (pharmacy): products.quantity always equals the sum of its batch quantities when batches exist.
-export const productBatches = pgTable("product_batches", {
-  id: id(), tenantId: tenantId(),
-  productId: uuid("product_id").notNull().references(() => products.id, { onDelete: "cascade" }),
-  batchNo: text("batch_no").notNull(), expiryDate: date("expiry_date").notNull(),
-  quantity: integer("quantity").notNull().default(0), // remaining base units
-  costPrice: numeric("cost_price", { precision: 12, scale: 2 }),
-  createdAt: createdAt(),
-}, (t) => [index("batches_product_expiry").on(t.productId, t.expiryDate), index("batches_tenant_expiry").on(t.tenantId, t.expiryDate), uniqueIndex("batches_uq").on(t.productId, t.batchNo, t.expiryDate)]);
 
 export const purchases = pgTable("purchases", {
   id: id(), tenantId: tenantId(),
@@ -234,8 +218,6 @@ export const purchaseItems = pgTable("purchase_items", {
   purchaseId: uuid("purchase_id").notNull().references(() => purchases.id, { onDelete: "cascade" }),
   productId: uuid("product_id").notNull().references(() => products.id),
   quantity: integer("quantity").notNull(), unitCost: money("unit_cost"),
-  batchNo: text("batch_no"), expiryDate: date("expiry_date"), // required when the business uses batches
-  unitsPerLine: integer("units_per_line").notNull().default(1), // base units per ordered unit (e.g. 10 tablets per strip); stock added = quantity x unitsPerLine
 });
 
 // ---------- Expenses ----------
@@ -272,17 +254,8 @@ export const transactionItems = pgTable("transaction_items", {
   staffId: uuid("staff_id").references(() => staff.id),
   name: text("name").notNull(),
   quantity: integer("quantity").notNull(), unitPrice: money("unit_price"),
-  stockUnits: integer("stock_units").notNull().default(0), // base units taken from stock (quantity x pack size)
   returnOfItemId: uuid("return_of_item_id"), // set on credit-note lines: which sale line is being returned
   discount: money("discount"), tax: money("tax"), lineTotal: money("line_total"),
-});
-
-// Which batches a sale line was taken from (so a void returns stock to the right batch).
-export const transactionItemBatches = pgTable("transaction_item_batches", {
-  id: id(), tenantId: tenantId(),
-  itemId: uuid("item_id").notNull().references(() => transactionItems.id, { onDelete: "cascade" }),
-  batchId: uuid("batch_id").notNull(), quantity: integer("quantity").notNull(),
-  returnedQuantity: integer("returned_quantity").notNull().default(0),
 });
 
 export const payments = pgTable("payments", {

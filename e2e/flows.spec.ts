@@ -32,7 +32,7 @@ test("owner logs in and sees real dashboard data", async ({ page }) => {
   await login(page, "owner@royal.demo");
   await expect(page).toHaveURL(/dashboard/);
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
-  await expect(page.getByText("Sales (incl. tax)")).toBeVisible();
+  await expect(page.getByText("Total Revenue")).toBeVisible();
   await expect(page.getByText(/PKR/).first()).toBeVisible(); // Royal is a PKR business
 });
 
@@ -43,7 +43,7 @@ test("new business: register, onboard, land on empty dashboard", async ({ page }
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("Str0ng-Password-1");
   await page.getByLabel("Business name").fill("E2E Cuts");
-  await page.getByLabel("Business type").selectOption("hair_salon");
+  await page.getByLabel("Salon type").selectOption("hair_salon");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/onboarding/);
   for (let i = 0; i < 3; i++) { await page.getByRole("button", { name: "Continue" }).click(); await page.waitForTimeout(400); }
@@ -73,7 +73,7 @@ test("each business sees only its own data, and there is no business switcher", 
 test("business type is locked after sign-up (cannot be changed in Settings)", async ({ page }) => {
   await login(page, "owner@royal.demo");
   await page.goto("/settings");
-  await expect(page.getByLabel("Business type")).toBeDisabled();
+  await expect(page.getByLabel("Salon type")).toBeDisabled();
   await expect(page.getByText(/cannot be changed/)).toBeVisible();
 });
 
@@ -178,7 +178,7 @@ test("forgot password: request link, reset, sign in with the new password", asyn
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("Old-Password-123");
   await page.getByLabel("Business name").fill("Forgot Salon");
-  await page.getByLabel("Business type").selectOption("hair_salon");
+  await page.getByLabel("Salon type").selectOption("hair_salon");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/onboarding/);
   await expect(page.getByText(/Please confirm your email/)).toHaveCount(0); // onboarding has no banner; app pages do
@@ -218,7 +218,7 @@ test("new accounts see a confirm-email banner and can confirm via the emailed li
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("Verify-Pass-123");
   await page.getByLabel("Business name").fill("Verify Salon");
-  await page.getByLabel("Business type").selectOption("hair_salon");
+  await page.getByLabel("Salon type").selectOption("hair_salon");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/onboarding/);
   const outbox = fs.readFileSync(".data/e2e-outbox.log", "utf8");
@@ -228,98 +228,34 @@ test("new accounts see a confirm-email banner and can confirm via the emailed li
   await expect(page.getByText("Email confirmed")).toBeVisible();
 });
 
-test("pharmacy business: no appointment features, pharmacy wording, modules are switchable", async ({ page }) => {
-  const email = `pharma${Date.now()}@example.test`;
+test("salon sign-up only offers salon types, and the dashboard shows the salon layout", async ({ page }) => {
   await page.goto("/register");
-  await page.getByLabel("Your name").fill("Pharma Owner");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill("Pharma-Pass-123");
-  await page.getByLabel("Business name").fill("Green Cross Pharmacy");
-  await page.getByLabel("Business type").selectOption("hair_salon");
-  await page.getByLabel("Business type").selectOption("pharmacy");
-  await page.getByRole("button", { name: "Create account" }).click();
-  await expect(page).toHaveURL(/onboarding/);
-  for (let i = 0; i < 3; i++) { await page.getByRole("button", { name: "Continue" }).click(); await page.waitForTimeout(400); }
-  await page.getByRole("button", { name: "Finish setup" }).click();
-  await expect(page).toHaveURL(/dashboard/, { timeout: 30_000 });
+  const types = await page.getByLabel("Salon type").locator("option").allTextContents();
+  expect(types.join("|")).toContain("Hair salon");
+  for (const bad of ["Pharmacy", "Retail", "Grocery", "Restaurant", "Clinic"]) expect(types.join("|")).not.toContain(bad);
 
+  await login(page, "owner@royal.demo");
+  await expect(page.getByText("Total Customers")).toBeVisible();
+  await expect(page.getByText("Total Revenue")).toBeVisible();
+  await expect(page.getByText("Appointments Today")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Day Schedule" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent Sales" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Upcoming Appointments" })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Main" });
-  await expect(nav.getByRole("link", { name: "Inventory" })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Point of Sale" })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Patients / customers" })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Calendar" })).toHaveCount(0);
-  await expect(nav.getByRole("link", { name: "Appointments" })).toHaveCount(0);
-  await expect(nav.getByRole("link", { name: "Services" })).toHaveCount(0);
-
-  await page.goto("/calendar"); // blocked on the server, not just hidden
-  await expect(page).toHaveURL(/dashboard/);
-
-  await page.goto("/pos");
-  await expect(page.getByRole("button", { name: "Services", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Medicines & items" })).toBeVisible();
-
-  await page.goto("/settings");
-  await page.getByRole("tab", { name: "Modules" }).click();
-  await expect(page.getByLabel(/Batches & expiry/)).toBeChecked();
-  await expect(page.getByLabel(/Appointments & calendar/)).not.toBeChecked();
+  for (const name of ["Appointments", "Calendar", "Customers", "Services", "Stylists", "Inventory"]) await expect(nav.getByRole("link", { name })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Expiry alerts" })).toHaveCount(0);
+  const res = await page.goto("/expiry");
+  expect(res?.status()).toBe(404);
 });
 
-test.describe("pharmacy pack", () => {
-  test("pharmacist sees stock + dispensing screens but no Settings", async ({ page }) => {
-    await login(page, "pharmacist@pharmacy.demo");
-    const nav = page.getByRole("navigation", { name: "Main" });
-    for (const name of ["Point of Sale", "Inventory", "Expiry alerts", "Purchases"]) await expect(nav.getByRole("link", { name })).toBeVisible();
-    await expect(nav.getByRole("link", { name: "Settings" })).toHaveCount(0);
-    await expect(nav.getByRole("link", { name: "Calendar" })).toHaveCount(0);
-    await page.goto("/settings");
-    await expect(page.getByText("Access denied")).toBeVisible();
-  });
-
-  test("dashboard warns about expired batches still in stock", async ({ page }) => {
-    await login(page, "owner@pharmacy.demo");
-    await expect(page.getByText(/expired batch.* still in stock/)).toBeVisible();
-  });
-
-  test("POS shows strength + strips, blocks expired stock, and sells a strip", async ({ page }) => {
-    await login(page, "owner@pharmacy.demo");
-    await page.goto("/pos");
-    await expect(page.getByText("Paracetamol · 500 mg")).toBeVisible();
-    await expect(page.getByText(/expired — not sellable/).first()).toBeVisible();
-    await page.getByRole("button", { name: "Add one strip of Panadol 500mg" }).click();
-    await expect(page.getByText("Panadol 500mg (strip of 10)")).toBeVisible();
-    await page.getByRole("button", { name: "Pay full amount" }).click();
-    await page.getByRole("button", { name: /^Charge/ }).click();
-    await expect(page.getByText("Sale complete")).toBeVisible({ timeout: 30_000 });
-    await page.getByRole("link", { name: "View receipt" }).click();
-    await expect(page.getByLabel("Invoice document").getByText("Panadol 500mg (strip of 10)")).toBeVisible();
-  });
-
-  test("expiry page lists the expired batch and the owner can write it off", async ({ page }) => {
-    await login(page, "owner@pharmacy.demo");
-    await page.goto("/expiry");
-    const row = page.getByRole("row", { name: /Augmentin 625mg/ }).filter({ hasText: "AUG-2305" });
-    await expect(row).toContainText(/Expired \d+ days? ago/);
-    page.once("dialog", (d) => d.accept());
-    await row.getByRole("button", { name: "Write off" }).click();
-    await expect(page.getByText(/unit\(s\) written off/)).toBeVisible();
-    await expect(page.getByRole("row", { name: /AUG-2305/ })).toHaveCount(0);
-  });
-
-  test("inventory shows generic names, nearest expiry and per-batch details", async ({ page }) => {
-    await login(page, "owner@pharmacy.demo");
-    await page.goto("/inventory");
-    await expect(page.getByText("Nearest expiry")).toBeVisible();
-    await expect(page.getByText(/Paracetamol/).first()).toBeVisible();
-    await page.getByRole("row", { name: /Panadol 500mg/ }).getByRole("link", { name: "Batches" }).click();
-    await expect(page.getByRole("cell", { name: "PAN-2409" })).toBeVisible();
-  });
-
-  test("a salon never sees pharmacy screens", async ({ page }) => {
-    await login(page, "owner@royal.demo");
-    await expect(page.getByRole("navigation", { name: "Main" }).getByRole("link", { name: "Expiry alerts" })).toHaveCount(0);
-    await page.goto("/expiry");
-    await expect(page).toHaveURL(/dashboard/);
-  });
+test("dashboard: pick another day in the upcoming-appointments week strip", async ({ page }) => {
+  await login(page, "owner@royal.demo");
+  const strip = page.getByRole("navigation", { name: "Pick a day" });
+  await expect(strip.getByRole("link")).toHaveCount(7);
+  await strip.getByRole("link").nth(0).click();
+  await expect(page).toHaveURL(/day=\d{4}-\d{2}-\d{2}/);
+  await page.getByRole("link", { name: "Next week" }).click();
+  await expect(page).toHaveURL(/day=/);
 });
 
 test.describe("POS extras: returns, coupons, credit, receipts, day close", () => {
@@ -432,14 +368,14 @@ test.describe("platform admin tools", () => {
     await page.getByRole("button", { name: "Create business" }).click();
     const dlg = page.getByRole("dialog");
     const email = `client${Date.now()}@example.test`;
-    await dlg.locator("input[name=businessName]").fill("E2E Client Pharmacy");
-    await dlg.locator("select[name=businessType]").selectOption("pharmacy");
+    await dlg.locator("input[name=businessName]").fill("E2E Client Salon");
+    await dlg.locator("select[name=businessType]").selectOption("spa");
     await dlg.locator("input[name=ownerName]").fill("Client Owner");
     await dlg.locator("input[name=ownerEmail]").fill(email);
     await dlg.getByRole("button", { name: "Create business" }).click();
     const toastText = await page.getByText(/Temporary password:/).first().innerText();
     const temp = /Temporary password:\s*(\S+)/.exec(toastText)![1];
-    await expect(page.getByRole("cell", { name: "E2E Client Pharmacy" })).toBeVisible();
+    await expect(page.getByRole("cell", { name: "E2E Client Salon" })).toBeVisible();
 
     await page.context().clearCookies();
     await submitLogin(page, email, temp);

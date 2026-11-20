@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { DB } from "@/db/client";
-import { commissions, customers, invoices, inventoryMovements, payments, productBatches, products, services, staff, tenants, transactionItemBatches, transactionItems, transactions } from "@/db/schema";
+import { commissions, customers, invoices, inventoryMovements, payments, products, services, staff, tenants, transactionItems, transactions } from "@/db/schema";
 import { AppError, audit, need, type Ctx } from "../ctx";
 import { fromCents, pctOf, toCents } from "@/lib/money";
 import { saleBalances } from "./ledger";
@@ -75,8 +75,7 @@ export async function createReturn(ctx: Ctx, raw: unknown): Promise<ReturnResult
         const disc = cum(toCents(item.discount), k1) - cum(toCents(item.discount), k0);
         const tax = cum(toCents(item.tax), k1) - cum(toCents(item.tax), k0);
         const gross = toCents(item.unitPrice) * l.quantity;
-        const perQty = item.stockUnits > 0 && item.quantity > 0 ? item.stockUnits / item.quantity : 0;
-        return { item, q: l.quantity, gross, disc, tax, amount: gross - disc + tax, units: l.restock && item.kind === "product" ? Math.round(l.quantity * perQty) : 0 };
+        return { item, q: l.quantity, gross, disc, tax, amount: gross - disc + tax, units: l.restock && item.kind === "product" ? l.quantity : 0 };
       });
       const R = note.reduce((s, l) => s + l.amount, 0), G = note.reduce((s, l) => s + l.gross, 0), DISC = note.reduce((s, l) => s + l.disc, 0), TAX = note.reduce((s, l) => s + l.tax, 0);
       if (R <= 0) throw new AppError("Nothing to refund.");
@@ -102,27 +101,17 @@ export async function createReturn(ctx: Ctx, raw: unknown): Promise<ReturnResult
       await tx.insert(invoices).values({ tenantId: ctx.tenantId, transactionId: cn.id, number });
       await tx.insert(transactionItems).values(note.map((l) => ({
         tenantId: ctx.tenantId, transactionId: cn.id, kind: l.item.kind, serviceId: l.item.serviceId, productId: l.item.productId, staffId: l.item.staffId,
-        name: l.item.name, quantity: -l.q, unitPrice: l.item.unitPrice, stockUnits: l.units ? -l.units : 0,
+        name: l.item.name, quantity: -l.q, unitPrice: l.item.unitPrice,
         discount: fromCents(-l.disc), tax: fromCents(-l.tax), lineTotal: fromCents(-l.amount), returnOfItemId: l.item.id,
       })));
       if (cash > 0) await tx.insert(payments).values({ tenantId: ctx.tenantId, transactionId: cn.id, method: v.refundMethod!, amount: fromCents(-cash), note: `Refund: ${v.reason}`, createdBy: ctx.userId });
 
-      // Put stock back (same batches the units came from when batches are used).
+      // Put stock back for restocked product lines.
       for (const l of note.filter((x) => x.units > 0 && x.item.productId)) {
         const [p] = await tx.update(products).set({ quantity: sql`${products.quantity} + ${l.units}` })
-          .where(and(eq(products.id, l.item.productId!), eq(products.tenantId, ctx.tenantId), eq(products.trackStock, true))).returning({ q: products.quantity });
+          .where(and(eq(products.id, l.item.productId!), eq(products.tenantId, ctx.tenantId))).returning({ q: products.quantity });
         if (!p) continue;
-        let left = l.units;
-        const allocs = await tx.select().from(transactionItemBatches).where(and(eq(transactionItemBatches.itemId, l.item.id), eq(transactionItemBatches.tenantId, ctx.tenantId)));
-        for (const a of allocs) {
-          const take = Math.min(a.quantity - a.returnedQuantity, left);
-          if (take <= 0) continue;
-          await tx.update(transactionItemBatches).set({ returnedQuantity: sql`${transactionItemBatches.returnedQuantity} + ${take}` }).where(eq(transactionItemBatches.id, a.id));
-          await tx.update(productBatches).set({ quantity: sql`${productBatches.quantity} + ${take}` }).where(and(eq(productBatches.id, a.batchId), eq(productBatches.tenantId, ctx.tenantId)));
-          await tx.insert(inventoryMovements).values({ tenantId: ctx.tenantId, productId: l.item.productId!, delta: take, balanceAfter: p.q, reason: "return", refType: "transaction", refId: cn.id, batchId: a.batchId, userId: ctx.userId });
-          left -= take;
-        }
-        if (left > 0) await tx.insert(inventoryMovements).values({ tenantId: ctx.tenantId, productId: l.item.productId!, delta: left, balanceAfter: p.q, reason: "return", refType: "transaction", refId: cn.id, userId: ctx.userId });
+        await tx.insert(inventoryMovements).values({ tenantId: ctx.tenantId, productId: l.item.productId!, delta: l.units, balanceAfter: p.q, reason: "return", refType: "transaction", refId: cn.id, userId: ctx.userId });
       }
 
       // Take back commission earned on returned service lines.

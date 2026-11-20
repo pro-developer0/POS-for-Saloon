@@ -5,6 +5,7 @@ import type { DB } from "@/db/client";
 import { memberships, tenants, users, staff, serviceCategories, services } from "@/db/schema";
 import { defaultWeek } from "@/lib/time";
 import { AppError } from "./ctx";
+import { DEFAULT_TYPE, SALON_TYPES } from "@/lib/verticals";
 
 export const passwordSchema = z.string().min(10, "Password must be at least 10 characters").max(200)
   .refine((p) => /[a-z]/i.test(p) && /\d/.test(p), "Password needs letters and numbers");
@@ -14,12 +15,11 @@ export const registerSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
   password: passwordSchema,
   businessName: z.string().trim().min(2).max(120),
-  businessType: z.string().trim().default("hair_salon"),
+  businessType: z.string().trim().default(DEFAULT_TYPE).refine((t) => t in SALON_TYPES, "Choose a salon type"),
 });
 
 const slugify = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || "business";
 
-export const BUSINESS_TYPES = ["hair_salon", "beauty_salon", "barbershop", "spa", "nail_studio", "makeup_studio", "hair_clinic", "other"] as const;
 
 export async function createTenant(db: DB, input: { name: string; type?: string; currency?: string; timezone?: string; country?: string; isDemo?: boolean }) {
   const base = slugify(input.name);
@@ -30,7 +30,7 @@ export async function createTenant(db: DB, input: { name: string; type?: string;
     slug = `${base}-${i}`;
   }
   const [t] = await db.insert(tenants).values({
-    name: input.name, slug, businessType: input.type ?? "hair_salon",
+    name: input.name, slug, businessType: input.type ?? DEFAULT_TYPE,
     currency: input.currency ?? "USD", timezone: input.timezone ?? "UTC", country: input.country ?? "US",
     hours: defaultWeek(), status: "active", isDemo: !!input.isDemo,
   }).returning();

@@ -17,7 +17,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ q
   const can = ctx.perms.has("customers.manage"), tz = ctx.tenant.timezone;
   return (
     <div className="page-in">
-      <PageHeader title={labelsOf(ctx.tenant).customers} desc="Profiles, visit history, loyalty and marketing consent." actions={can ? <ModalForm trigger="Add customer" title="New customer" action={saveCustomerAction} wide><CustomerFields /></ModalForm> : null} />
+      <PageHeader title={labelsOf().customers} desc="Profiles, visit history, loyalty and marketing consent." actions={can ? <ModalForm trigger="Add customer" title="New customer" action={saveCustomerAction} wide><CustomerFields /></ModalForm> : null} />
       <form className="card mb-4 flex flex-wrap gap-3 p-4">
         <input name="q" defaultValue={sp.q} className="input max-w-xs" placeholder="Search name, phone, email…" aria-label="Search" />
         <input name="tag" defaultValue={sp.tag} className="input max-w-[10rem]" placeholder="Tag" aria-label="Tag" />

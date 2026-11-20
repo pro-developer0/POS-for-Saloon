@@ -40,7 +40,7 @@ export default async function Page() {
   void zonedParts;
   return (
     <div className="page-in">
-      <PageHeader title={labelsOf(ctx.tenant).staff} desc="Profiles, schedules, commission and time off." actions={can ? <>
+      <PageHeader title={labelsOf().staff} desc="Profiles, schedules, commission and time off." actions={can ? <>
         <ModalForm trigger="Add time off" triggerClass="btn" title="Time off / leave" action={timeOffAction}>
           <Field label="Staff"><select name="staffId" required className="input">{rows.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
           <div className="grid grid-cols-2 gap-3"><Field label="From"><input name="from" type="date" required className="input" /></Field><Field label="To (inclusive)"><input name="to" type="date" required className="input" /></Field></div>

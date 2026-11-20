@@ -44,7 +44,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ t
             <ModalForm trigger="Create business" title="Create a client business" action={adminCreateBusinessAction} submitLabel="Create business" wide>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Business name"><input name="businessName" required className="input" /></Field>
-                <Field label="Business type"><select name="businessType" required defaultValue="" className="input"><option value="" disabled>Select…</option>{BUSINESS_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+                <Field label="Salon type"><select name="businessType" required defaultValue="" className="input"><option value="" disabled>Select…</option>{BUSINESS_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
                 <Field label="Owner name"><input name="ownerName" required className="input" /></Field>
                 <Field label="Owner email (their login)"><input name="ownerEmail" type="email" required className="input" /></Field>
                 <Field label="Currency"><select name="currency" defaultValue="PKR" className="input">{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Field>

@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import type { DB } from "@/db/client";
-import { users, memberships, tenants, customers, services, serviceCategories, staff, staffServices, products, suppliers, expenses, appointments, transactions, payments, invoices, commissions, inventoryMovements, productBatches } from "@/db/schema";
+import { users, memberships, tenants, customers, services, serviceCategories, staff, staffServices, products, suppliers, expenses, appointments, transactions, payments, invoices, commissions, inventoryMovements } from "@/db/schema";
 import { createTenant } from "./auth";
 import { buildCtx } from "./ctx";
 import { checkout } from "./services/pos";
@@ -10,7 +10,6 @@ import { defaultWeek, zonedParts, zonedToUtc, addDays } from "@/lib/time";
 export const DEMO_PASSWORD = "Demo-Pass-123";
 export const DEMO_USERS = {
   royal: "owner@royal.demo", glow: "owner@glow.demo", multi: "multi@demo.test", admin: "admin@salonpro.local",
-  pharmacy: "owner@pharmacy.demo", pharmacist: "pharmacist@pharmacy.demo",
 };
 
 type Spec = {
@@ -23,7 +22,7 @@ type Spec = {
 
 const SPECS: Record<string, Spec> = {
   royal: {
-    name: "Royal Hair Studio", type: "hair_salon", currency: "PKR", tz: "Asia/Karachi", country: "PK", brand: "#9d174d", accent: "#d97706", taxRate: "0", prefix: "RHS",
+    name: "Royal Hair Studio", type: "hair_salon", currency: "PKR", tz: "Asia/Karachi", country: "PK", brand: "#8b5cf6", accent: "#f59e0b", taxRate: "0", prefix: "RHS",
     cats: [
       { name: "Hair", items: [["Haircut & Style", 45, 1500, 20], ["Hair Color", 120, 6500, 15], ["Keratin Treatment", 150, 12000, 15], ["Blow Dry", 30, 900, 20]] },
       { name: "Grooming", items: [["Beard Trim", 20, 500, 25], ["Facial", 60, 3000, 20]] },
@@ -114,7 +113,24 @@ export async function seedDemo(db: DB) {
       await db.update(appointments).set({ transactionId: r.transactionId }).where(eq(appointments.id, a.id));
       await backdate(db, r.transactionId, startsAt);
     }
-    // two future appointments
+    // today's schedule across all stylists (feeds the dashboard day view)
+    const todayRows: [number, number, number][] = [[0, 0, 540], [0, 2, 690], [0, 4, 840], [1, 1, 540], [1, 3, 690], [1, 5, 780], [2, 2, 570], [2, 0, 720], [2, 4, 870]]; // staff idx, service idx, start minutes
+    for (const [n, [si, vi, mins]] of todayRows.entries()) {
+      const st = staffRows[si % staffRows.length], svc = svcRows[vi % svcRows.length];
+      const startsAt = zonedToUtc(today, mins, sp.tz);
+      await db.insert(appointments).values({
+        tenantId: t.id, customerId: custRows[(n * 3) % custRows.length].id, serviceId: svc.id, staffId: st.id, startsAt,
+        endsAt: new Date(startsAt.getTime() + svc.durationMinutes * 60000), durationMinutes: svc.durationMinutes, price: svc.price, status: n % 3 === 0 ? "pending" : "confirmed",
+      });
+    }
+    // upcoming appointments on the next days
+    for (let n = 0; n < 8; n++) {
+      const date = addDays(today, 1 + (n % 5));
+      const st = staffRows[n % staffRows.length], svc = svcRows[(n + 1) % svcRows.length];
+      const startsAt = zonedToUtc(date, 600 + n * 40, sp.tz);
+      await db.insert(appointments).values({ tenantId: t.id, customerId: custRows[(n * 2 + 1) % custRows.length].id, serviceId: svc.id, staffId: st.id, startsAt, endsAt: new Date(startsAt.getTime() + svc.durationMinutes * 60000), durationMinutes: svc.durationMinutes, price: svc.price, status: "confirmed" });
+    }
+    // legacy: a few more future appointments
     for (let n = 0; n < 3; n++) {
       const date = addDays(today, 1 + n);
       const d = zonedParts(zonedToUtc(date, 720, sp.tz), sp.tz);
@@ -124,7 +140,6 @@ export async function seedDemo(db: DB) {
       await db.insert(appointments).values({ tenantId: t.id, customerId: custRows[n].id, serviceId: svc.id, staffId: st.id, startsAt, endsAt: new Date(startsAt.getTime() + svc.durationMinutes * 60000), durationMinutes: svc.durationMinutes, price: svc.price, status: "confirmed" });
     }
   }
-  out.pharmacy = await seedPharmacy(db, hash);
   return out;
 }
 
@@ -145,49 +160,4 @@ async function backdate(db: DB, txId: string, when: Date) {
   await db.update(payments).set({ createdAt: when }).where(eq(payments.transactionId, txId));
   await db.update(invoices).set({ createdAt: when }).where(eq(invoices.transactionId, txId));
   await db.update(commissions).set({ createdAt: when }).where(eq(commissions.transactionId, txId));
-}
-
-/** Demo pharmacy: medicines with generic names, strips/boxes, in-date + near-expiry + already-expired batches. */
-export async function seedPharmacy(db: DB, hash: string) {
-  const [owner] = await db.insert(users).values({ email: DEMO_USERS.pharmacy, name: "Pharmacy Owner", passwordHash: hash, emailVerifiedAt: new Date() }).returning();
-  const [pharm] = await db.insert(users).values({ email: DEMO_USERS.pharmacist, name: "Sara Pharmacist", passwordHash: hash, emailVerifiedAt: new Date() }).returning();
-  const t = await createTenant(db, { name: "City Care Pharmacy", type: "pharmacy", currency: "PKR", timezone: "Asia/Karachi", country: "PK", isDemo: true });
-  await db.update(tenants).set({ brandColor: "#047857", accentColor: "#0ea5e9", onboarded: true, invoicePrefix: "CCP", paymentMethods: ["cash", "card", "easypaisa", "jazzcash"], hours: defaultWeek("09:00", "23:00", []), address: "Demo Market, Karachi", phone: "+00 000 0000" }).where(eq(tenants.id, t.id));
-  await db.insert(memberships).values([{ userId: owner.id, tenantId: t.id, role: "owner" }, { userId: pharm.id, tenantId: t.id, role: "pharmacist" }]);
-  const [sup] = await db.insert(suppliers).values({ tenantId: t.id, name: "National Pharma Distributors", phone: "000-000" }).returning();
-  const today = zonedParts(new Date(), "Asia/Karachi").date;
-  // [name, generic, strength, form, unit, packLabel, unitsPerPack, cost, price, packPrice, batches[[no, daysToExpiry, qty]]]
-  const meds: [string, string, string, string, string, string | null, number, number, number, number | null, [string, number, number][]][] = [
-    ["Panadol 500mg", "Paracetamol", "500 mg", "Tablet", "tablet", "strip", 10, 2, 3, 28, [["PAN-2409", 400, 300], ["PAN-2312", 25, 40]]],
-    ["Augmentin 625mg", "Amoxicillin + Clavulanate", "625 mg", "Tablet", "tablet", "strip", 6, 60, 78, 450, [["AUG-2501", 200, 60], ["AUG-2305", -10, 12]]],
-    ["Brufen 400mg", "Ibuprofen", "400 mg", "Tablet", "tablet", "strip", 10, 3, 5, 45, [["BRU-2410", 300, 200]]],
-    ["Calpol Syrup 120mg/5ml", "Paracetamol", "120 mg/5 ml", "Syrup", "bottle", null, 1, 150, 220, null, [["CAL-2411", 300, 30], ["CAL-2308", 50, 8]]],
-    ["Vitamin C 500mg", "Ascorbic acid", "500 mg", "Tablet", "tablet", "bottle", 100, 1.5, 3, 250, [["VIC-2503", 500, 400]]],
-  ];
-  const prodRows: (typeof products.$inferSelect)[] = [];
-  for (const [name, generic, strength, form, unit, packLabel, perPack, cost, price, packPrice, batches] of meds) {
-    const total = batches.reduce((a, b) => a + b[2], 0);
-    const [pr] = await db.insert(products).values({ tenantId: t.id, name, genericName: generic, strength, dosageForm: form, unitLabel: unit, packLabel, unitsPerPack: perPack, packPrice: packPrice == null ? null : packPrice.toFixed(2), costPrice: cost.toFixed(2), sellPrice: price.toFixed(2), quantity: total, minStock: 20, supplierId: sup.id, category: form === "Syrup" ? "Syrups" : "Tablets", taxable: false }).returning();
-    for (const [no, days, qty] of batches) {
-      const [b] = await db.insert(productBatches).values({ tenantId: t.id, productId: pr.id, batchNo: no, expiryDate: addDays(today, days), quantity: qty, costPrice: cost.toFixed(2) }).returning();
-      await db.insert(inventoryMovements).values({ tenantId: t.id, productId: pr.id, delta: qty, balanceAfter: total, reason: "initial", note: "Batch " + no, batchId: b.id });
-    }
-    prodRows.push(pr);
-  }
-  const custRows: (typeof customers.$inferSelect)[] = [];
-  for (const [i, name] of ["Ahmed Raza", "Bushra Khan", "Tariq Mehmood", "Samina Bibi", "Faisal Iqbal", "Noreen Akhtar"].entries())
-    custRows.push((await db.insert(customers).values({ tenantId: t.id, name, phone: `+000 555 02${String(i).padStart(2, "0")}`, marketingConsent: i % 2 === 0 }).returning())[0]);
-  await db.insert(expenses).values([{ tenantId: t.id, name: "Shop rent", category: "Rent", amount: "60000.00", spentOn: addDays(today, -3), paymentMethod: "cash" }, { tenantId: t.id, name: "Electricity", category: "Utilities", amount: "14000.00", spentOn: addDays(today, -9), paymentMethod: "cash" }]);
-
-  // real sales through checkout (exercises FEFO), backdated across the last weeks
-  const ctx = await buildCtx(db, owner.id, t.id);
-  for (let n = 0; n < 18; n++) {
-    const pr = prodRows[n % prodRows.length];
-    const pack = pr.unitsPerPack > 1 && n % 2 === 0;
-    const items = [{ kind: "product" as const, id: pr.id, quantity: pack ? 1 : 1 + (n % 3), pack }];
-    const price = items[0].pack ? Number(pr.packPrice ?? Number(pr.sellPrice) * pr.unitsPerPack) : Number(pr.sellPrice);
-    const r = await checkout(ctx, { customerId: custRows[n % custRows.length].id, items, idempotencyKey: `seed-pharmacy-${n}`, payments: [{ method: ["cash", "card", "easypaisa"][n % 3], amount: Number((price * items[0].quantity).toFixed(2)) }] });
-    await backdate(db, r.transactionId, zonedToUtc(addDays(today, -(1 + ((n * 5) % 30))), 600 + ((n * 37) % 600), "Asia/Karachi"));
-  }
-  return t.id;
 }

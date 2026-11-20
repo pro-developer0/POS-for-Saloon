@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { and, eq } from "drizzle-orm";
 import { createDb, type DB } from "@/db/client";
-import { commissions, customers, productBatches, products, services, staff, tenants, transactionItems, transactions, users, coupons, payments } from "@/db/schema";
+import { commissions, customers, products, services, staff, tenants, transactionItems, transactions, users, coupons, payments } from "@/db/schema";
 import { seedDemo, DEMO_USERS } from "@/server/seed";
 import { registerOwner } from "@/server/auth";
 import { buildCtx, type Ctx } from "@/server/ctx";
@@ -15,7 +15,7 @@ import { rangeFor, salesSummary } from "@/server/services/reports";
 import { addDays, zonedParts } from "@/lib/time";
 import { toCents } from "@/lib/money";
 
-let db: DB; let ids: Record<string, string>; let royal: Ctx; let glow: Ctx; let pharmacy: Ctx; let cashier: Ctx; let manager: Ctx;
+let db: DB; let ids: Record<string, string>; let royal: Ctx; let glow: Ctx; let cashier: Ctx; let manager: Ctx;
 const uid = async (e: string) => (await db.select().from(users).where(eq(users.email, e)))[0].id;
 let n = 0; const key = (p = "x") => `${p}-${++n}-${Math.random().toString(36).slice(2, 8)}`;
 const svc = async (tenantId: string, name: string) => (await db.select().from(services).where(and(eq(services.tenantId, tenantId), eq(services.name, name))))[0];
@@ -31,7 +31,6 @@ beforeAll(async () => {
   ids = await seedDemo(db);
   royal = await buildCtx(db, await uid(DEMO_USERS.royal), ids.royal);
   glow = await buildCtx(db, await uid(DEMO_USERS.glow), ids.glow);
-  pharmacy = await buildCtx(db, await uid(DEMO_USERS.pharmacy), ids.pharmacy);
   cashier = await buildCtx(db, await uid(DEMO_USERS.multi), ids.glow); // cashier at Glow
   manager = await buildCtx(db, await uid(DEMO_USERS.multi), ids.royal); // manager at Royal
 });
@@ -151,18 +150,14 @@ describe("returns: credit notes that net out of every report", () => {
     await expect(addPayment(royal, cn.transactionId, "cash", 1)).rejects.toThrow(/only be added to sales/);
   });
 
-  it("returned batch stock goes back to the batch it was sold from", async () => {
-    const p = await prod(ids.pharmacy, "Panadol 500mg");
-    const batches = async () => db.select().from(productBatches).where(eq(productBatches.productId, p.id));
-    const soon = (await batches()).filter((b) => b.quantity > 0).sort((a, b) => a.expiryDate.localeCompare(b.expiryDate))[0];
-    const c = await cust(ids.pharmacy);
-    const r = await checkout(pharmacy, { customerId: c.id, items: [{ kind: "product", id: p.id, quantity: 10 }], idempotencyKey: key(), payments: [{ method: "cash", amount: 30 }] });
-    const afterSale = (await batches()).find((b) => b.id === soon.id)!.quantity;
-    expect(afterSale).toBe(soon.quantity - 10);
+  it("restocked returns put the units back on the shelf (and are logged)", async () => {
+    const p = await prod(ids.royal, "Styling Gel");
+    const c = await cust(ids.royal);
+    const r = await checkout(royal, { customerId: c.id, items: [{ kind: "product", id: p.id, quantity: 5 }], idempotencyKey: key(), payments: [{ method: "cash", amount: 3250 }] });
+    expect((await prod(ids.royal, "Styling Gel")).quantity).toBe(p.quantity - 5);
     const [line] = await items(r.transactionId);
-    await ret(pharmacy, r.transactionId, [{ itemId: line.id, quantity: 4, restock: true }], { refundMethod: "cash" });
-    expect((await batches()).find((b) => b.id === soon.id)!.quantity).toBe(afterSale + 4);
-    expect((await prod(ids.pharmacy, "Panadol 500mg")).quantity).toBe(p.quantity - 10 + 4);
+    await ret(royal, r.transactionId, [{ itemId: line.id, quantity: 2, restock: true }], { refundMethod: "cash" });
+    expect((await prod(ids.royal, "Styling Gel")).quantity).toBe(p.quantity - 5 + 2);
   });
 });
 
@@ -270,7 +265,7 @@ describe("coupons", () => {
 describe("end-of-day cash closing", () => {
   let shop: Ctx;
   beforeAll(async () => {
-    const { user, tenant } = await registerOwner(db, { name: "Closer", email: "close@shop.test", password: "Closing-Pass-1", businessName: "Close Shop", businessType: "retail" });
+    const { user, tenant } = await registerOwner(db, { name: "Closer", email: "close@shop.test", password: "Closing-Pass-1", businessName: "Close Salon", businessType: "hair_salon" });
     await db.update(tenants).set({ onboarded: true, paymentMethods: ["cash", "card"] }).where(eq(tenants.id, tenant.id));
     shop = await buildCtx(db, user.id, tenant.id);
   });

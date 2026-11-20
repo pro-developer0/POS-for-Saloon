@@ -25,7 +25,7 @@ Legend: ✅ done & verified · 🟡 partial · ❌ not done
 | Returns & refunds (credit notes), customer credit (udhaar, limits, receive payment), coupons, thermal 80 mm receipt, day-close cash count | ✅ | Returns are separate negative credit notes (sale never edited; all reports net automatically); refunds need the sales.refund permission (not cashiers); credit sales require a customer; coupons validated server-side. Receipt prints via the browser (no direct ESC/POS printer driver). No store-credit/exchange flow |
 | Invoices, payments, void, print | 🟡 | PDF = browser "Print / Save as PDF" (no server-side PDF generator) |
 | Inventory, movements, valuation, low-stock notifications | ✅ | Service-linked product usage not implemented |
-| Pharmacy pack (batches + expiry, soonest-expiry-first selling, expired stock blocked, expiry alerts + write-off, generic name/strength/form, sell by unit or strip/box, Pharmacist role) | ✅ | 23 unit tests + 6 browser tests. NOT included by request: prescriptions, barcode scanning. Not a regulatory sign-off: have a licensed pharmacist/DRAP-aware advisor review before selling to pharmacies |
+| Salon-only product (pharmacy/retail/restaurant/clinic types, batches/expiry and pack selling removed; dark dashboard with KPIs, day schedule, sales curve, upcoming appointments) | ✅ | Single focus: salons. A general POS product is a later, separate project. |
 | Suppliers, purchase orders, receiving | 🟡 | One product line per PO in the UI (backend supports many); no supplier payments |
 | Expenses + receipts + categories | ✅ | |
 | Reports + CSV export | ✅ | PDF via print |

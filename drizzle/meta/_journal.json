@@ -50,6 +50,13 @@
       "when": 1795121754167,
       "tag": "0006_easy_ser_duncan",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795165411914,
+      "tag": "0007_salon_only",
+      "breakpoints": true
     }
   ]
 }
