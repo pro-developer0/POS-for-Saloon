@@ -74,7 +74,7 @@ export default async function Page({ params }: { params: Promise<{ id: string }>
         <dl className="ml-auto mt-5 w-full max-w-xs space-y-1.5 text-sm">
           <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd>{money(d.t.subtotal, cur)}</dd></div>
           {Number(d.t.discount) !== 0 && <div className="flex justify-between"><dt className="text-muted">Discounts{d.t.couponCode ? ` (coupon ${d.t.couponCode})` : ""}</dt><dd>{money(-Number(d.t.discount), cur)}</dd></div>}
-          <div className="flex justify-between"><dt className="text-muted">{t.taxName}</dt><dd>{money(d.t.tax, cur)}</dd></div>
+          {Number(d.t.tax) !== 0 && <div className="flex justify-between"><dt className="text-muted">{t.taxName}</dt><dd>{money(d.t.tax, cur)}</dd></div>}
           <div className="flex justify-between border-t border-line pt-2 text-base font-bold"><dt>Total</dt><dd>{money(d.t.total, cur)}</dd></div>
           {isNote ? (
             <>

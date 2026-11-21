@@ -36,10 +36,6 @@ export function LocaleFields({ t }: { t: Tenant }) {
       <Field label="Currency"><select name="currency" className="input" defaultValue={t.currency}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</select></Field>
       <Field label="Timezone"><select name="timezone" className="input" defaultValue={t.timezone}>{[...new Set([t.timezone, ...TIMEZONES])].map((z) => <option key={z}>{z}</option>)}</select></Field>
       <Field label="Time format"><select name="timeFormat" className="input" defaultValue={t.timeFormat}><option value="12h">12-hour</option><option value="24h">24-hour</option></select></Field>
-      <Field label="Tax name"><input name="taxName" className="input" defaultValue={t.taxName} placeholder="VAT, GST, Sales tax" /></Field>
-      <Field label="Tax rate (%)" hint="Applied to taxable services/products; prices are tax-exclusive."><input name="taxRate" type="number" step="0.01" min="0" max="100" className="input" defaultValue={t.taxRate} /></Field>
-      <Field label="Booking slot (minutes)"><input name="slotMinutes" type="number" min="5" max="120" step="5" className="input" defaultValue={t.slotMinutes} /></Field>
-      <Field label="Buffer between appointments (min)"><input name="bufferMinutes" type="number" min="0" max="120" className="input" defaultValue={t.bufferMinutes} /></Field>
       <Field label="Payment methods" hint="Comma-separated, e.g. cash, card, easypaisa"><input name="paymentMethods" className="input" defaultValue={t.paymentMethods.join(", ")} /></Field>
       <Field label="Invoice prefix"><input name="invoicePrefix" className="input" maxLength={8} defaultValue={t.invoicePrefix} /></Field>
       <div className="sm:col-span-2"><Field label="Invoice / receipt footer"><input name="invoiceFooter" className="input" defaultValue={t.invoiceFooter ?? ""} placeholder="Thank you for visiting!" /></Field></div>

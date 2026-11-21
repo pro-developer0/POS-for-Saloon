@@ -129,8 +129,6 @@ export async function saveBusinessAction(fd: FormData, finish = false): Promise<
     try { new Intl.DateTimeFormat("en", { timeZone: tz }); } catch { throw new AppError("Unknown timezone"); }
     const cur = (s(fd, "currency") || ctx.tenant.currency).toUpperCase();
     if (!/^[A-Z]{3}$/.test(cur)) throw new AppError("Currency must be a 3-letter code (e.g. USD)");
-    const rate = Number(s(fd, "taxRate") || 0);
-    if (!(rate >= 0 && rate <= 100)) throw new AppError("Tax rate must be 0–100");
     const methods = s(fd, "paymentMethods").split(",").map((x) => x.trim().toLowerCase().replace(/\s+/g, "_")).filter(Boolean);
     const d = await db();
     const patch: Partial<typeof tenants.$inferInsert> = {
@@ -139,8 +137,6 @@ export async function saveBusinessAction(fd: FormData, finish = false): Promise<
       country: s(fd, "country") || ctx.tenant.country, currency: cur, timezone: tz, timeFormat: s(fd, "timeFormat") === "24h" ? "24h" : "12h", dateFormat: s(fd, "dateFormat") || ctx.tenant.dateFormat,
       address: s(fd, "address") || null, phone: s(fd, "phone") || null, email: s(fd, "email") || null, website: s(fd, "website") || null,
       social: { instagram: s(fd, "instagram"), facebook: s(fd, "facebook") },
-      taxName: s(fd, "taxName") || "Tax", taxRate: rate.toFixed(2),
-      slotMinutes: Math.min(120, Math.max(5, Number(s(fd, "slotMinutes")) || ctx.tenant.slotMinutes)), bufferMinutes: Math.min(120, Math.max(0, Number(s(fd, "bufferMinutes") || 0))),
       invoicePrefix: (s(fd, "invoicePrefix") || "INV").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || "INV", invoiceFooter: s(fd, "invoiceFooter") || null,
       lowStockDefault: Math.max(0, Number(s(fd, "lowStockDefault") || 5)),
     };

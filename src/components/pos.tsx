@@ -165,7 +165,7 @@ export function Pos({ services, products, customers, staff, methods, taxRate, cu
           ) : (
             <div className="flex gap-2"><input className="input !h-8" placeholder="Coupon code" aria-label="Coupon code" value={couponInput} onChange={(e) => setCouponInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCoupon(); } }} /><button className="btn btn-sm" onClick={applyCoupon} disabled={!cart.length}>Apply</button></div>
           )}
-          <Row k={`Tax (${Number(taxRate)}%)`} v={fmt(t.tax)} />
+          {Number(taxRate) > 0 && <Row k={`Tax (${Number(taxRate)}%)`} v={fmt(t.tax)} />}
           <div className="flex items-center justify-between pt-1 text-lg font-bold"><span>Total</span><span>{fmt(t.total)}</span></div>
         </div>
         <div className="mt-3 space-y-2">

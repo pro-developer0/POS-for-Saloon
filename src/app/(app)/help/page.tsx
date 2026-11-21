@@ -5,7 +5,7 @@ import { Card, PageHeader } from "@/components/ui";
 export const metadata = { title: "Help & Support" };
 const FAQ: [string, string][] = [
   ["How do I take a payment?", "Open Point of Sale, add services or products, choose a payment method (split payments are supported) and press Charge. A numbered invoice and receipt are created automatically."],
-  ["Why can't I book a time?", "Bookings must be inside business hours, inside the staff member's working hours, outside breaks and time off, aligned to your slot size, and must not overlap another appointment (including the configured buffer). The error message tells you which rule failed."],
+  ["Why can't I book a time?", "Bookings must be inside business hours, inside the staff member's working hours, outside breaks and time off, and must not overlap another appointment. The error message tells you which rule failed."],
   ["How do I let someone pay later?", "In POS, tick 'Leave balance on invoice'. Later, open the invoice and use Record payment."],
   ["Can I edit a completed sale?", "No. Financial records are append-only for accuracy. Unpaid sales can be voided with a reason (stock is returned); payments are added, never overwritten."],
   ["How does the AI assistant work?", "Numbers are calculated by the app from your database. The AI (a free cloud model or a local model, configured by your platform administrator) only explains those verified results. If AI is off or unavailable, you still see the verified figures."],
