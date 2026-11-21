@@ -13,7 +13,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "demo:reset": "tsx scripts/seed.ts --reset",
     "test:e2e": "playwright test",
-    "admin:create": "tsx scripts/create-admin.ts"
+    "admin:create": "tsx scripts/create-admin.ts",
+    "mail:test": "tsx scripts/test-mail.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.17",
