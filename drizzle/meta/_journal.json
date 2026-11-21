@@ -57,6 +57,13 @@
       "when": 1795165411914,
       "tag": "0007_salon_only",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795246947711,
+      "tag": "0008_files_in_db",
+      "breakpoints": true
     }
   ]
 }

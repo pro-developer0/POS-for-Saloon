@@ -1,7 +1,9 @@
+import { customType } from "drizzle-orm/pg-core";
 import {
   pgTable, uuid, text, timestamp, numeric, integer, boolean, jsonb, index, uniqueIndex, date,
 } from "drizzle-orm/pg-core";
 
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({ dataType: () => "bytea" });
 const id = () => uuid("id").primaryKey().defaultRandom();
 const money = (name: string) => numeric(name, { precision: 12, scale: 2 }).notNull().default("0");
 const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull().defaultNow();
@@ -343,3 +345,10 @@ export const cashCloses = pgTable("cash_closes", {
   totals: jsonb("totals").$type<Record<string, unknown>>().notNull().default({}),
   note: text("note"), closedBy: uuid("closed_by"),
 }, (t) => [index("cash_closes_tenant").on(t.tenantId, t.closedAt)]);
+
+// Uploaded logos / favicons / receipts live in the database (works on serverless hosts with no writable disk).
+export const files = pgTable("files", {
+  id: id(), tenantId: tenantId(),
+  name: text("name").notNull(), mime: text("mime").notNull(), data: bytea("data").notNull(),
+  createdAt: createdAt(),
+}, (t) => [uniqueIndex("files_tenant_name_uq").on(t.tenantId, t.name)]);
