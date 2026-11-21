@@ -6,6 +6,7 @@ import { notifications } from "@/db/schema";
 import { AppShell, type NavItem } from "@/components/shell";
 import { logoutAction } from "@/app/actions";
 import { readableOn } from "@/lib/color";
+import { mailConfigured } from "@/server/mail";
 import { ActionButton } from "@/components/forms";
 import { resendVerificationAction } from "@/app/actions";
 
@@ -49,7 +50,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   return (
     <div style={{ ["--brand" as string]: t.brandColor, ["--brand-fg" as string]: readableOn(t.brandColor), ["--accent" as string]: t.accentColor }}>
       <AppShell nav={nav} tenantName={t.name} logoUrl={t.logoUrl} userName={user.name} unread={n} logoutAction={logoutAction}>
-        {!user.emailVerifiedAt && (
+        {!user.emailVerifiedAt && mailConfigured() && (
           <div role="status" className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-warn/40 bg-warn/10 px-4 py-2.5 text-sm">
             <span>Please confirm your email address ({user.email}).</span>
             <ActionButton action={resendVerificationAction} className="btn btn-sm">Resend email</ActionButton>

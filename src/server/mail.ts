@@ -1,3 +1,4 @@
+import { AppError } from "./ctx";
 import { PRODUCT_NAME } from "@/lib/brand";
 import fs from "node:fs";
 import path from "node:path";
@@ -8,6 +9,9 @@ import path from "node:path";
  *  - Not set -> the message is appended to the outbox file (default .data/outbox.log) so dev/testing works with no service.
  * No paid provider is required or assumed.
  */
+/** True when emails can really be sent: an SMTP account is set, or we are in development (outbox file). */
+export const mailConfigured = () => !!process.env.SMTP_URL || process.env.NODE_ENV !== "production";
+
 export type Mail = { to: string; subject: string; text: string };
 export const outboxFile = () => process.env.OUTBOX_FILE ?? path.join(process.cwd(), ".data", "outbox.log");
 
@@ -18,6 +22,7 @@ export async function sendMail(m: Mail): Promise<"smtp" | "outbox"> {
     await nodemailer.createTransport(url).sendMail({ from: process.env.MAIL_FROM ?? `${PRODUCT_NAME} <no-reply@localhost>`, to: m.to, subject: m.subject, text: m.text });
     return "smtp";
   }
+  if (!mailConfigured()) throw new AppError("Email is not set up for this site yet. Please contact the administrator.");
   const f = outboxFile();
   fs.mkdirSync(path.dirname(f), { recursive: true });
   fs.appendFileSync(f, `\n=== ${new Date().toISOString()} ===\nTo: ${m.to}\nSubject: ${m.subject}\n\n${m.text}\n`);
