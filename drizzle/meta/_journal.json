@@ -64,6 +64,13 @@
       "when": 1795246947711,
       "tag": "0008_files_in_db",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1795247573176,
+      "tag": "0009_three_salon_types",
+      "breakpoints": true
     }
   ]
 }

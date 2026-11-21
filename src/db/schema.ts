@@ -45,7 +45,7 @@ export const tenants = pgTable("tenants", {
   id: id(),
   name: text("name").notNull(),
   slug: text("slug").notNull(),
-  businessType: text("business_type").notNull().default("hair_salon"),
+  businessType: text("business_type").notNull().default("unisex_salon"),
   status: text("status").notNull().default("active"), // active | suspended (set by the platform admin)
   plan: text("plan").notNull().default("trial"),
   trialEndsAt: tstz("trial_ends_at"),

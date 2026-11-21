@@ -25,23 +25,24 @@ const LABELS: Labels = {
   appointment: "Appointment", appointments: "Appointments", product: "Product", products: "Products", posNote: "Payment notes (optional)",
 };
 
-type SalonType = { label: string; hint: string; serviceCategories: string[] };
+type SalonType = { label: string; hint: string };
+/** The only salon types offered when creating a salon. */
 export const SALON_TYPES: Record<string, SalonType> = {
-  hair_salon: { label: "Hair salon", hint: "Cuts, styling, coloring, treatments.", serviceCategories: ["Hair", "Color", "Treatments"] },
-  beauty_salon: { label: "Beauty salon", hint: "Facials, makeup, waxing, skin care.", serviceCategories: ["Facial", "Makeup", "Waxing"] },
-  barbershop: { label: "Barbershop", hint: "Haircuts, beard grooming, shaves.", serviceCategories: ["Haircut", "Beard", "Grooming"] },
-  spa: { label: "Spa", hint: "Massage, body and wellness treatments.", serviceCategories: ["Massage", "Body", "Wellness"] },
-  nail_studio: { label: "Nail studio", hint: "Manicure, pedicure, nail art.", serviceCategories: ["Manicure", "Pedicure", "Nail art"] },
-  makeup_studio: { label: "Makeup studio", hint: "Bridal, party and everyday makeup.", serviceCategories: ["Bridal", "Party", "Everyday"] },
-  unisex_salon: { label: "Unisex salon", hint: "Hair and beauty for everyone.", serviceCategories: ["Hair", "Beauty", "Grooming"] },
+  mens_salon: { label: "Men's salon", hint: "Haircuts, beard grooming, shaves, facials for men." },
+  womens_salon: { label: "Women's salon", hint: "Hair, beauty, makeup, nails and skin care for women." },
+  unisex_salon: { label: "Unisex salon", hint: "Hair and beauty services for everyone." },
+};
+/** Older salons created before the three-type list keep working; these are never offered for new salons. */
+const LEGACY_LABELS: Record<string, string> = {
+  hair_salon: "Hair salon", beauty_salon: "Beauty salon", barbershop: "Barbershop", spa: "Spa", nail_studio: "Nail studio", makeup_studio: "Makeup studio", hair_clinic: "Hair clinic",
 };
 /** Kept for the admin screens and tests: the same list under its old name. */
 export const VERTICALS = SALON_TYPES;
-export const DEFAULT_TYPE = "hair_salon";
+export const DEFAULT_TYPE = "unisex_salon";
 export const BUSINESS_TYPE_ORDER = Object.keys(SALON_TYPES);
 export const BUSINESS_TYPE_OPTIONS: [string, string][] = BUSINESS_TYPE_ORDER.map((k) => [k, SALON_TYPES[k].label]);
 
-export const verticalOf = (type: string) => SALON_TYPES[type] ?? SALON_TYPES[DEFAULT_TYPE];
+export const verticalOf = (type: string) => SALON_TYPES[type] ?? { label: LEGACY_LABELS[type] ?? SALON_TYPES[DEFAULT_TYPE].label, hint: SALON_TYPES[DEFAULT_TYPE].hint };
 export const presetModules = (): Module[] => [...MODULES];
 
 type T = { modules: string[] | null };

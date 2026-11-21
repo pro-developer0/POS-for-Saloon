@@ -43,7 +43,7 @@ test("new business: register, onboard, land on empty dashboard", async ({ page }
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("Str0ng-Password-1");
   await page.getByLabel("Business name").fill("E2E Cuts");
-  await page.getByLabel("Salon type").selectOption("hair_salon");
+  await page.getByLabel("Salon type").selectOption("unisex_salon");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/onboarding/);
   for (let i = 0; i < 3; i++) { await page.getByRole("button", { name: "Continue" }).click(); await page.waitForTimeout(400); }
@@ -178,7 +178,7 @@ test("forgot password: request link, reset, sign in with the new password", asyn
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("Old-Password-123");
   await page.getByLabel("Business name").fill("Forgot Salon");
-  await page.getByLabel("Salon type").selectOption("hair_salon");
+  await page.getByLabel("Salon type").selectOption("unisex_salon");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/onboarding/);
   await expect(page.getByText(/Please confirm your email/)).toHaveCount(0); // onboarding has no banner; app pages do
@@ -218,7 +218,7 @@ test("new accounts see a confirm-email banner and can confirm via the emailed li
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill("Verify-Pass-123");
   await page.getByLabel("Business name").fill("Verify Salon");
-  await page.getByLabel("Salon type").selectOption("hair_salon");
+  await page.getByLabel("Salon type").selectOption("unisex_salon");
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/onboarding/);
   const outbox = fs.readFileSync(".data/e2e-outbox.log", "utf8");
@@ -231,7 +231,9 @@ test("new accounts see a confirm-email banner and can confirm via the emailed li
 test("salon sign-up only offers salon types, and the dashboard shows the salon layout", async ({ page }) => {
   await page.goto("/register");
   const types = await page.getByLabel("Salon type").locator("option").allTextContents();
-  expect(types.join("|")).toContain("Hair salon");
+  expect(types.join("|")).toContain("Men's salon");
+  expect(types.join("|")).toContain("Women's salon");
+  expect(types.join("|")).toContain("Unisex salon");
   for (const bad of ["Pharmacy", "Retail", "Grocery", "Restaurant", "Clinic"]) expect(types.join("|")).not.toContain(bad);
 
   await login(page, "owner@royal.demo");
@@ -369,7 +371,7 @@ test.describe("platform admin tools", () => {
     const dlg = page.getByRole("dialog");
     const email = `client${Date.now()}@example.test`;
     await dlg.locator("input[name=businessName]").fill("E2E Client Salon");
-    await dlg.locator("select[name=businessType]").selectOption("spa");
+    await dlg.locator("select[name=businessType]").selectOption("mens_salon");
     await dlg.locator("input[name=ownerName]").fill("Client Owner");
     await dlg.locator("input[name=ownerEmail]").fill(email);
     await dlg.getByRole("button", { name: "Create business" }).click();

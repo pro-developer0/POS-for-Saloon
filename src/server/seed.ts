@@ -22,7 +22,7 @@ type Spec = {
 
 const SPECS: Record<string, Spec> = {
   royal: {
-    name: "Royal Hair Studio", type: "hair_salon", currency: "PKR", tz: "Asia/Karachi", country: "PK", brand: "#8b5cf6", accent: "#f59e0b", taxRate: "0", prefix: "RHS",
+    name: "Royal Hair Studio", type: "unisex_salon", currency: "PKR", tz: "Asia/Karachi", country: "PK", brand: "#8b5cf6", accent: "#f59e0b", taxRate: "0", prefix: "RHS",
     cats: [
       { name: "Hair", items: [["Haircut & Style", 45, 1500, 20], ["Hair Color", 120, 6500, 15], ["Keratin Treatment", 150, 12000, 15], ["Blow Dry", 30, 900, 20]] },
       { name: "Grooming", items: [["Beard Trim", 20, 500, 25], ["Facial", 60, 3000, 20]] },
@@ -34,7 +34,7 @@ const SPECS: Record<string, Spec> = {
     methods: ["cash", "card", "easypaisa", "jazzcash"],
   },
   glow: {
-    name: "Glow Beauty Lounge", type: "beauty_salon", currency: "USD", tz: "America/New_York", country: "US", brand: "#0d9488", accent: "#e11d48", taxRate: "8.25", prefix: "GBL",
+    name: "Glow Beauty Lounge", type: "womens_salon", currency: "USD", tz: "America/New_York", country: "US", brand: "#0d9488", accent: "#e11d48", taxRate: "8.25", prefix: "GBL",
     cats: [
       { name: "Nails", items: [["Classic Manicure", 30, 30, 25], ["Gel Pedicure", 60, 55, 25], ["Nail Art", 45, 40, 30]] },
       { name: "Skin & Brows", items: [["Signature Facial", 60, 95, 20], ["Brow Shaping", 30, 35, 30], ["Lash Lift", 60, 85, 25]] },

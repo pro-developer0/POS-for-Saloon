@@ -265,7 +265,7 @@ describe("coupons", () => {
 describe("end-of-day cash closing", () => {
   let shop: Ctx;
   beforeAll(async () => {
-    const { user, tenant } = await registerOwner(db, { name: "Closer", email: "close@shop.test", password: "Closing-Pass-1", businessName: "Close Salon", businessType: "hair_salon" });
+    const { user, tenant } = await registerOwner(db, { name: "Closer", email: "close@shop.test", password: "Closing-Pass-1", businessName: "Close Salon", businessType: "unisex_salon" });
     await db.update(tenants).set({ onboarded: true, paymentMethods: ["cash", "card"] }).where(eq(tenants.id, tenant.id));
     shop = await buildCtx(db, user.id, tenant.id);
   });

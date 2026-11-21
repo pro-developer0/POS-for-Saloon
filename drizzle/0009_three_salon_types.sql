@@ -1,0 +1,1 @@
+ALTER TABLE "tenants" ALTER COLUMN "business_type" SET DEFAULT 'unisex_salon';
